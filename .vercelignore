@@ -5,3 +5,13 @@ contracts/
 .git/
 .DS_Store
 booster/mock/mock-server.py
+
+# Member B's REAL booster client (needs the real WebSocket server, which Vercel
+# can't host - without it this just gets stuck on "CONNECTING..."). It lives in
+# the same /booster folder as Member A's mock join/booster UI (booster/ui/*),
+# and Vercel was resolving /booster and /booster/ to this file instead of the
+# vercel.json rewrite. Excluded here only for THIS deployment; the files
+# themselves are untouched in git.
+booster/app.js
+booster/index.html
+booster/style.css
