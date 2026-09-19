@@ -8,8 +8,8 @@
 //               events, then RACE_STATE ─┴──► broadcast to clients by role
 //
 // Clients only send inputs. Team, position, speed, energy, winner and every
-// counter are decided here. No blockchain code exists in this file: a later
-// ChainQueue/ChainAdapter will be fed from accepted boosts, never awaited here.
+// counter are decided here. The chain layer (src/chain) is fed from accepted boosts
+// and is never awaited here.
 
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import http from "node:http";
@@ -124,6 +124,14 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
           status: engine.status,
           connections: roles,
           uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+          // Monitoring detail. Never contains keys, addresses or URLs.
+          chain: (() => {
+            const c = chain?.status();
+            return c
+              ? { mode: c.chainMode, state: c.chainState, rpcHealthy: c.rpcHealthy, pendingTransactions: c.pendingTransactions, unsentBoosts: c.unsentBoosts }
+              : { mode: "OFF", state: "OFF" };
+          })(),
+          memoryMb: Math.round(process.memoryUsage().rss / 1048576),
         };
       },
     }),

@@ -1,0 +1,15 @@
+# Secrets: never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+keystore*
+**/keystore*
+
+# Build output / dependencies
+node_modules/
+dist/
+contracts/out/
+contracts/cache/
+contracts/broadcast/

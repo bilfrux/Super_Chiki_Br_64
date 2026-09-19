@@ -4,7 +4,9 @@ import { joinInfo } from "./network.js";
 import { startServer } from "./server.js";
 
 const config = loadConfig();
-const server = await startServer(config);
+// Every server log line gets a timestamp (platform log viewers do not always add one).
+const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
+const server = await startServer(config, log);
 const join = joinInfo({ publicUrl: config.publicUrl, port: server.port, boosterPath: BOOSTER_PATH });
 
 console.log(`MONAD GRAND PRIX server (protocol v1)`);
@@ -24,6 +26,9 @@ console.log(
       ? `  Chain: LIVE Monad Testnet (chain id ${config.chain.chainId}); the race never waits for it`
       : `  Chain: OFF (set DEMO_MODE=true, or RELAYER_PRIVATE_KEY + BOOST_LEDGER_ADDRESS)`,
 );
+if (config.adminKey === "dev-admin-key" || (config.adminKey && config.adminKey.length < 8)) {
+  console.log(`  ! ADMIN_KEY is the example value or very short. Anyone who guesses it can START/RESET your race: set a long random one.`);
+}
 console.log(
   config.adminKey
     ? `  Admin role: enabled (ADMIN_KEY set)`

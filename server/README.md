@@ -1,6 +1,6 @@
 # @mgp/server — authoritative WebSocket server (protocol v1)
 
-Contract: [`../shared/protocol/PROTOCOL.md`](../shared/protocol/PROTOCOL.md). No Monad code yet (`chainMode` is `"OFF"`).
+Contract: [`../shared/protocol/PROTOCOL.md`](../shared/protocol/PROTOCOL.md). Chain layer: see "Monad Testnet" below. With nothing configured, `chainMode` is `"OFF"`.
 
 The same port also serves the Booster phone UI (`/booster/`), the lobby + QR page (`/lobby/`), and a few JSON/SVG endpoints.
 
