@@ -1063,17 +1063,26 @@
       }
 
       // Live ranking, P1..P4 by real race position (0..1) - the same number that decides the winner.
+      // Live ranking + remaining distance. The server only tracks race progress as a 0..1
+      // fraction (no physical distance unit exists per PROTOCOL.md), so "distance left" is
+      // shown as % of the race remaining, with a small progress bar for an at-a-glance read.
       function renderRanking(s) {
-        if (!ranking) ranking = el('div', 'position:fixed;right:14px;bottom:14px;z-index:6;font:700 0.85em Verdana,sans-serif;color:#fff;text-shadow:0 1px 3px #000;background:rgba(0,0,0,0.45);padding:8px 10px;border-radius:6px;pointer-events:none;min-width:140px');
+        if (!ranking) ranking = el('div', 'position:fixed;right:14px;bottom:14px;z-index:6;font:700 0.8em Verdana,sans-serif;color:#fff;text-shadow:0 1px 3px #000;background:rgba(0,0,0,0.5);padding:8px 10px;border-radius:6px;pointer-events:none;min-width:190px');
         var ranked = s.teams.slice().sort(function (a, b) { return b.position - a.position; });
         ranking.innerHTML = ranked.map(function (t, i) {
           var team = TEAMS.filter(function (x) { return x.id === t.id; })[0];
           var name = team ? team.name : String(t.id).toUpperCase();
           var color = team ? team.color : '#fff';
-          return '<div style="display:flex;align-items:center;gap:6px;padding:1px 0">' +
-            '<span style="opacity:0.8">P' + (i + 1) + '</span>' +
+          var pct = Math.max(0, Math.min(100, t.position * 100));
+          var remaining = Math.max(0, 100 - pct);
+          return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0">' +
+            '<span style="opacity:0.8;width:16px">P' + (i + 1) + '</span>' +
             '<span style="width:10px;height:10px;border-radius:50%;background:' + color + ';display:inline-block;flex:none"></span>' +
-            '<span>' + name + '</span>' +
+            '<span style="flex:1;white-space:nowrap">' + name + '</span>' +
+            '<span style="width:46px;height:6px;background:rgba(255,255,255,0.25);border-radius:3px;display:inline-block;overflow:hidden;flex:none">' +
+              '<span style="display:block;height:100%;width:' + pct.toFixed(0) + '%;background:' + color + '"></span>' +
+            '</span>' +
+            '<span style="width:38px;text-align:right;font-variant-numeric:tabular-nums;opacity:0.9">' + remaining.toFixed(0) + '%</span>' +
             '</div>';
         }).join('');
       }
