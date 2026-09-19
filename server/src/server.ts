@@ -32,6 +32,7 @@ import {
   type TeamId,
 } from "../../shared/index.js";
 import type { ServerConfig } from "./config.js";
+import { createChain } from "./chain/index.js";
 import { RaceEngine } from "./engine.js";
 import { createRequestHandler } from "./http.js";
 import { buildLobbyMetrics } from "./metrics.js";
@@ -95,6 +96,10 @@ const rawToString = (data: RawData): string =>
 
 export async function startServer(config: ServerConfig, log: Logger = console.log): Promise<ServerHandle> {
   const engine = new RaceEngine(config.race, config.memes, config.tickHz);
+  // Chain layer (optional). Fed AFTER the race state changed; nothing here ever awaits it.
+  const chain = createChain(config, log);
+  if (chain) engine.setChainSource(() => chain.status());
+  void chain?.start();
   const players = new Map<string, Player>(); // by token
   const conns = new Set<Conn>(); // every open socket
   const live = new Set<Conn>(); // sockets that completed HELLO
@@ -109,7 +114,7 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
       config,
       getPort: () => listeningPort,
       metrics: () =>
-        buildLobbyMetrics(engine.snapshot(), [...live].map((c) => c.player!.role), engine.boostTotals()),
+        buildLobbyMetrics(engine.snapshot(), [...live].map((c) => c.player!.role), engine.boostTotals(), chain?.status()),
       health: () => {
         const roles: Record<string, number> = { screen: 0, admin: 0, driver: 0, booster: 0 };
         for (const c of live) roles[c.player!.role] = (roles[c.player!.role] ?? 0) + 1;
@@ -307,7 +312,10 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
         const l = conn.boost.take(performance.now());
         if (l !== "ok") return rateLimited(conn, l, "BOOST");
         // Ignored outside RACING / FINAL_LAP / CHAOS: no error, not counted.
-        if (engine.applyBoost(player.team!)) player.boostsSent += 1;
+        if (engine.applyBoost(player.team!)) {
+          player.boostsSent += 1;
+          chain?.record(player.team!); // O(1) counter bump; the transaction is sent later, asynchronously
+        }
         return;
       }
       case "PING":
@@ -320,6 +328,7 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
           log(`> race START by admin`);
         } else {
           engine.reset();
+          chain?.reset();
           log(`> race RESET by admin`);
         }
         broadcastState(); // immediate snapshot after START / RESET
@@ -447,6 +456,7 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
     connectionCount: () => live.size,
     close: async () => {
       for (const t of [tickTimer, stateTimer, heartbeatTimer, pruneTimer]) clearInterval(t);
+      chain?.stop();
       for (const c of conns) c.ws.terminate();
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));

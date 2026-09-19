@@ -95,3 +95,17 @@ Only accepted boosts count (`RACING`/`FINAL_LAP`/`CHAOS`); rate-limited or ignor
 **Blockchain metrics** (reported by the chain layer only): `RACE_STATE.metrics.transactionsSent`, `transactionsConfirmed`, `eventsReceived`, plus `chainMode`. With no chain layer they are `0` and `chainMode` is `"OFF"`; the lobby shows `–` and "No chain configured". In `DEMO` mode the lobby labels them simulated.
 
 **How the game consumes them:** it needs nothing beyond `RACE_STATE`. Show `metrics.boostsPerSecond` as "crowd power" (or use `teams[i].boostRate` per car), and show `transactionsSent/Confirmed` only when `chainMode === "LIVE"`. `/api/metrics` is for the lobby page; the game should not poll it.
+
+## Monad Testnet (chain layer)
+
+Code: `src/chain/`. Contract: `../contracts`. Decisions and sources: `../MONAD_RESOURCES.md`.
+
+`BOOST` → race state updated at once → `chain.record(team)` (a counter bump) → every `CHAIN_FLUSH_MS` one batched `recordBatch` transaction from the server's relayer wallet → receipt → block finalized → `transactionsConfirmed` / `eventsReceived`. Nothing in the game path awaits the chain. RPC down or slow: boosts keep applying, counts are kept and retried with backoff (1 s → 15 s), the lobby shows RPC "DELAYED". Wrong chain id or no contract at the address: chain turns `OFF`, game unaffected.
+
+| Mode | How | `chainMode` |
+|---|---|---|
+| none | default | `OFF` |
+| simulated | `DEMO_MODE=true` | `DEMO` (counters are simulated) |
+| real | `RELAYER_PRIVATE_KEY` + `BOOST_LEDGER_ADDRESS` | `LIVE` |
+
+`npm run chain:check` verifies the configuration against the real RPC (chain id, finalized block, relayer balance, contract code) and sends nothing.

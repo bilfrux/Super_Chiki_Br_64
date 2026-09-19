@@ -1,0 +1,8 @@
+# Keys exactly as documented at https://docs.monad.xyz/guides/deploy-smart-contract/foundry (Foundry >= 1.8).
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+network = "monad"
+eth-rpc-url = "https://testnet-rpc.monad.xyz"
+chain_id = 10143

@@ -8,7 +8,25 @@ import {
   type MemeConfig,
 } from "../../shared/index.js";
 import { DEFAULT_RACE_CONFIG, type RaceConfig } from "./engine.js";
+import { DEFAULT_QUEUE_OPTIONS, type QueueOptions } from "./chain/queue.js";
 import { defaultBoosterDir, defaultLobbyDir } from "./paths.js";
+
+/** Monad Testnet values from https://docs.monad.xyz/developer-essentials/testnets (see MONAD_RESOURCES.md). */
+export const MONAD_TESTNET_CHAIN_ID = 10143;
+export const MONAD_TESTNET_RPC_URLS = ["https://testnet-rpc.monad.xyz", "https://rpc-testnet.monadinfra.com"];
+
+export type ChainConfig = {
+  /** DEMO_MODE=true: simulated chain activity, chainMode "DEMO". */
+  demo: boolean;
+  /** Live Monad is used only when both are set; otherwise chainMode is "OFF". */
+  privateKey?: string; // RELAYER_PRIVATE_KEY, environment only
+  contractAddress?: string; // BOOST_LEDGER_ADDRESS
+  chainId: number;
+  rpcUrls: string[];
+  gasLimit: bigint;
+  rpcTimeoutMs: number;
+  queue: QueueOptions;
+};
 
 export type ServerConfig = {
   port: number;
@@ -40,9 +58,11 @@ export type ServerConfig = {
   maxConnections: number;
   race: RaceConfig;
   memes: MemeConfig;
+  chain: ChainConfig;
 };
 
-export type ConfigOverrides = Partial<Omit<ServerConfig, "rate" | "race">> & {
+export type ConfigOverrides = Partial<Omit<ServerConfig, "rate" | "race" | "chain">> & {
+  chain?: Partial<Omit<ChainConfig, "queue">> & { queue?: Partial<QueueOptions> };
   rate?: Partial<ServerConfig["rate"]>;
   race?: Partial<RaceConfig>;
 };
@@ -94,6 +114,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Conf
       safeSpeed: num(env, "SAFE_SPEED", r.safeSpeed, { min: 0 }),
       finalLapPosition: num(env, "FINAL_LAP_POSITION", r.finalLapPosition, { min: 0 }),
     },
+    chain: {
+      demo: env.DEMO_MODE === "true",
+      privateKey: env.RELAYER_PRIVATE_KEY || undefined,
+      contractAddress: env.BOOST_LEDGER_ADDRESS || undefined,
+      chainId: num(env, "CHAIN_ID", MONAD_TESTNET_CHAIN_ID, { min: 1, int: true }),
+      rpcUrls: env.MONAD_RPC_URLS ? env.MONAD_RPC_URLS.split(",").map((u) => u.trim()).filter(Boolean) : MONAD_TESTNET_RPC_URLS,
+      gasLimit: BigInt(num(env, "CHAIN_GAS_LIMIT", 150_000, { min: 21_000, int: true })),
+      rpcTimeoutMs: num(env, "RPC_TIMEOUT_MS", 5000, { min: 100 }),
+      queue: {
+        flushMs: num(env, "CHAIN_FLUSH_MS", DEFAULT_QUEUE_OPTIONS.flushMs, { min: 50 }),
+        pollMs: num(env, "CHAIN_POLL_MS", DEFAULT_QUEUE_OPTIONS.pollMs, { min: 50 }),
+        confirmTimeoutMs: num(env, "CHAIN_CONFIRM_TIMEOUT_MS", DEFAULT_QUEUE_OPTIONS.confirmTimeoutMs, { min: 100 }),
+        maxInFlight: num(env, "CHAIN_MAX_IN_FLIGHT", DEFAULT_QUEUE_OPTIONS.maxInFlight, { min: 1, int: true }),
+        backoffMinMs: DEFAULT_QUEUE_OPTIONS.backoffMinMs,
+        backoffMaxMs: DEFAULT_QUEUE_OPTIONS.backoffMaxMs,
+      },
+    },
     memes: scale === 1
       ? DEFAULT_MEME_CONFIG
       : {
@@ -106,5 +143,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Conf
     ...overrides,
     rate: { ...base.rate, ...overrides.rate },
     race: { ...base.race, ...overrides.race },
+    chain: { ...base.chain, ...overrides.chain, queue: { ...base.chain.queue, ...overrides.chain?.queue } } as ChainConfig,
   };
 }

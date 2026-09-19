@@ -6,6 +6,7 @@
 //
 // Nothing here is "Monad TPS".
 
+import type { ChainStatus } from "./chain/index.js";
 import { TEAM_IDS, type RaceState, type Role, type TeamId } from "../../shared/index.js";
 
 export type LobbyMetrics = {
@@ -24,6 +25,13 @@ export type LobbyMetrics = {
     transactionsSent: number;
     transactionsConfirmed: number;
     eventsReceived: number;
+    // Health of the chain layer (lobby only; never in RACE_STATE):
+    transactionsFailed: number;
+    transactionsUnconfirmed: number;
+    pendingTransactions: number;
+    unsentBoosts: number;
+    rpcHealthy: boolean;
+    lastError?: string;
   };
 };
 
@@ -31,6 +39,7 @@ export function buildLobbyMetrics(
   state: RaceState,
   roles: readonly Role[],
   boostTotals: Record<TeamId, number>,
+  chain?: ChainStatus,
 ): LobbyMetrics {
   const count = (r: Role): number => roles.filter((x) => x === r).length;
   const teams = {} as LobbyMetrics["application"]["teams"];
@@ -56,6 +65,12 @@ export function buildLobbyMetrics(
       transactionsSent: state.metrics.transactionsSent,
       transactionsConfirmed: state.metrics.transactionsConfirmed,
       eventsReceived: state.metrics.eventsReceived,
+      transactionsFailed: chain?.transactionsFailed ?? 0,
+      transactionsUnconfirmed: chain?.transactionsUnconfirmed ?? 0,
+      pendingTransactions: chain?.pendingTransactions ?? 0,
+      unsentBoosts: chain?.unsentBoosts ?? 0,
+      rpcHealthy: chain?.rpcHealthy ?? true,
+      ...(chain?.lastError ? { lastError: chain.lastError } : {}),
     },
   };
 }

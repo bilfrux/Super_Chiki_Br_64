@@ -11,10 +11,12 @@
     "dev": "npm run build && npm start",
     "test": "tsc -p . && node --test --test-timeout=30000 \"dist/server/test/*.test.js\"",
     "demo": "npm run build && node dist/server/tools/demo.js",
-    "sim": "npm run build && node dist/server/tools/sim.js"
+    "sim": "npm run build && node dist/server/tools/sim.js",
+    "chain:check": "npm run build && node --env-file-if-exists=.env dist/server/tools/chain-check.js"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4",
+    "viem": "^2.56.8",
     "ws": "^8.18.0"
   },
   "devDependencies": {

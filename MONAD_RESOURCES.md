@@ -8,6 +8,10 @@ All network-specific information must be verified against official Monad documen
 
 ---
 
+## Sources consulted (2026-09-19)
+
+https://docs.monad.xyz/developer-essentials/testnets · /network-information (mainnet only) · /differences · /eip-7702 · /reserve-balance · https://docs.monad.xyz/guides/deploy-smart-contract/foundry · https://docs.monad.xyz/tooling-and-infra/wallet-infra/account-abstraction · https://docs.monad.xyz/templates/next-serwist-privy-smart-wallet · https://blitz.devnads.com and /resources · https://github.com/monad-developers/monad-blitz-paris · live JSON-RPC calls to both public testnet endpoints.
+
 ## Official Resources
 
 - Monad Documentation: https://docs.monad.xyz/
@@ -15,6 +19,7 @@ All network-specific information must be verified against official Monad documen
 - Monad docs index (machine-readable): https://docs.monad.xyz/llms.txt
 - Monad Blitz Resources: https://blitz.devnads.com/resources
 - Monad Blitz Portal: https://blitz.devnads.com
+- Monad Blitz Paris repo (submission = fork it): https://github.com/monad-developers/monad-blitz-paris — README only explains the fork steps and points to the portal
 - Monad Blitz Paris (Notion): https://monad-foundation.notion.site/Monad-Blitz-Paris-2736367594f2836989b9010568428050
   - **Not read.** The page is JavaScript-rendered and could not be fetched. Someone must open it by hand (rules, funding, any sponsored-transaction offer).
 
@@ -71,14 +76,14 @@ Sources: https://docs.monad.xyz/reference/json-rpc/overview.md, https://docs.mon
 
 Sources: https://docs.monad.xyz/guides/deploy-smart-contract/foundry, https://docs.monad.xyz/guides/deploy-smart-contract/ (Hardhat and Remix are also documented), https://docs.monad.xyz/guides/verify-smart-contract/
 
-- Foundry (docs require `forge` ≥ 1.8.0). Template: `forge init --template monad-developers/foundry-monad <name>`
+- Foundry (deploy steps in `contracts/README.md`; docs require `forge` ≥ 1.8.0). Template: `forge init --template monad-developers/foundry-monad <name>`
 - Documented `foundry.toml` keys: `network = "monad"`, `eth-rpc-url = "https://testnet-rpc.monad.xyz"`, `chain_id = 10143`
 - Documented deploy: `forge create src/<File>.sol:<Contract> --account <keystore> --broadcast`, with the keystore made by `cast wallet import`. The docs recommend a keystore over a raw private key.
 - Verification guides exist for Foundry and Hardhat.
 
-Contract state — **TODO, after design and deployment:**
+Contract state — **TODO, after deployment** (source: `contracts/src/BoostLedger.sol`, compiles with solc 0.8.37; not yet deployed):
 
-- Contract name:
+- Contract name: BoostLedger
 - Contract address:
 - Deployment transaction:
 - ABI:
@@ -99,13 +104,31 @@ A Booster must NOT have to approve a wallet transaction for every BOOST. The off
 
 **Not found in any official page read:** a Blitz-specific relayer, sponsor, session-key service, or pre-funded team wallet. Session keys are not documented in the pages read. Absence in these pages does not prove they don't exist. Check the Blitz Notion page and Blitz portal by hand.
 
-### Decision status: **NOT DECIDED**
+### Decision: server-side relayer + batched `BoostLedger` transactions
 
-No mechanism is chosen: not a relayer, sponsorship, EIP-7702, ERC-4337, session keys, or anything else. The decision waits until the hackathon-specific resources (Blitz portal / Notion page, organiser guidance) have been verified. Until then all chain code stays behind the `ChainAdapter` interface, with a `DEMO_MODE` implementation, so the game and protocol do not depend on the choice.
+Chosen 2026-09-19 after reading the official pages above. Reasons, all from documented facts:
 
-The only thing the verified limits already force: with roughly 20–50 public RPC requests per second, boosts cannot be one transaction each, so whatever mechanism is chosen must aggregate.
+- Public RPC limits (20-50 rps) make one transaction per boost impossible → **batching** (SPEC §14 allows this).
+- The Blitz resources page lists only *templates* for sponsored transactions (Privy + Pimlico smart wallets); they need a third-party account and API key and target per-user wallets. Boosters here are anonymous phones with no wallet, so that stack adds setup risk with no benefit. No Blitz relayer/sponsor/session-key service exists on any page read.
+- One server wallet ("relayer", funded from the faucet) pays for one aggregated transaction per window (default 2 s). Boosters never sign anything. EIP-7702 / ERC-4337 / session keys are **not used**.
 
----
+Flow: `BOOST → engine applies it immediately → ChainQueue counter += 1 → (every CHAIN_FLUSH_MS) one recordBatch tx → receipt → block Finalized → transactionsConfirmed++ and BoostsRecorded logs → eventsReceived++`.
+
+Not implemented on purpose: `eth_subscribe` (the docs list `logs`/`monadLogs`, but support on the public testnet WebSocket was never tested). Events are read from the receipt of our own transactions instead.
+
+Config (environment only; the key is never logged, never in the repo, never in `/api/*`):
+
+| Variable | Default | Note |
+|---|---|---|
+| `RELAYER_PRIVATE_KEY` + `BOOST_LEDGER_ADDRESS` | unset | both set → `chainMode: "LIVE"`; otherwise `"OFF"` |
+| `DEMO_MODE=true` | false | simulated activity, `chainMode: "DEMO"` |
+| `CHAIN_ID` | 10143 | checked against `eth_chainId` at startup; mismatch → chain OFF |
+| `MONAD_RPC_URLS` | testnet-rpc.monad.xyz, rpc-testnet.monadinfra.com | tried in order; both from the testnets page; no batching used (the Foundation endpoint disallows it) |
+| `CHAIN_GAS_LIMIT` | 150000 | gas is charged on the limit; **not measured on the real chain yet** |
+
+Verified live on 2026-09-19 (read-only, `npm run chain:check`): both public RPCs answer `eth_chainId = 0x279f` (10143); `finalized` block tag works; base fee ≈ 100 gwei.
+
+Confirmed = the receipt's block is at or below the `finalized` block (docs: treat Finalized as confirmed). A tx not confirmed after 60 s is counted as `transactionsUnconfirmed` (lobby only) and no longer tracked.
 
 ## Blockchain Mechanism
 
@@ -169,11 +192,11 @@ These are application metrics unless explicitly verified otherwise. In `DEMO_MOD
 
 ## Open items (need a human or a real test)
 
-- [ ] Read the Blitz Paris Notion page and Blitz portal (not fetchable by tooling)
+- [ ] Read the Blitz Paris Notion page by hand (not fetchable); the portal home page and resources page were read and contain no rules, faucet or sponsor offer
 - [ ] Confirm the faucet URL (two different ones in official docs) and get funds
 - [ ] Confirm block time (300 ms per JSON-RPC page)
-- [ ] Test `eth_subscribe` `logs` / `monadLogs` on the public testnet WebSocket
-- [ ] Decide the transaction mechanism after a real test transaction
+- [ ] (optional) test `eth_subscribe` `logs` on the public testnet WebSocket; not used
+- [x] Transaction mechanism decided: relayer + batched BoostLedger (see above); needs a real test transaction
 - [ ] Ask Blitz organisers whether sponsorship / API keys are provided
 
 ## Final Verified Configuration
@@ -184,10 +207,10 @@ This section must be completed before the final demo.
 - [x] Chain ID documented (10143) — re-verify
 - [x] RPC documented — re-verify with a live `eth_chainId` call
 - [x] Explorer documented — re-verify
-- [ ] Faucet verified (conflicting URLs)
-- [ ] Contract deployed
+- [ ] Faucet verified (testnets page says https://faucet.monad.xyz; Foundry guide says https://testnet.monad.xyz)
+- [ ] Contract deployed (needs a funded key)
 - [ ] Contract address recorded
-- [ ] Transaction tested
-- [ ] Event tested
+- [ ] Transaction tested on the real testnet (only tested against a fake node so far)
+- [ ] Event tested on the real testnet
 - [ ] Booster flow tested
-- [ ] Failure/fallback tested
+- [x] Failure/fallback tested (RPC down, slow RPC, not-yet-finalized, wrong chain id; fake node)

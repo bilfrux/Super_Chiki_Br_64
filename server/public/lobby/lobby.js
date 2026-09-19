@@ -108,7 +108,10 @@
     var off = c.chainMode === "OFF", demo = c.chainMode === "DEMO";
     setText("c-sent", off ? "–" : c.transactionsSent);
     setText("c-conf", off ? "–" : c.transactionsConfirmed);
-    setText("c-note", off ? "No chain configured: nothing is being sent to Monad." : demo ? "DEMO mode: simulated activity, not real Monad data." : "");
+    setText("c-pend", off ? "–" : c.pendingTransactions);
+    setText("c-wait", off ? "–" : c.unsentBoosts);
+    setText("c-rpc", off ? "–" : c.rpcHealthy ? "OK" : "DELAYED");
+    setText("c-note", !off && !c.rpcHealthy ? "RPC unreachable or slow. The race is unaffected; boosts are queued and sent when it recovers." : off ? "No chain configured: nothing is being sent to Monad." : demo ? "DEMO mode: simulated activity, not real Monad data." : "");
   }
   function pollMetrics() {
     fetch("/api/metrics").then(function (r) { return r.json(); }).then(renderMetrics).catch(function () { /* next poll */ });

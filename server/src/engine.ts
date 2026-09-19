@@ -19,7 +19,9 @@ import {
   type ActiveMeme,
   type GameEvent,
   type MemeConfig,
+  type ChainMode,
   type MemeEvent,
+  type RaceMetrics,
   type RaceState,
   type RaceStatus,
   type TeamId,
@@ -48,6 +50,9 @@ export const DEFAULT_RACE_CONFIG: RaceConfig = {
   safeSpeed: 0.3,
   finalLapPosition: 0.75,
 };
+
+/** Read-only view of the chain layer. The engine never calls into the chain, it only reads counters. */
+export type ChainSource = () => Pick<RaceMetrics, "transactionsSent" | "transactionsConfirmed" | "eventsReceived"> & { chainMode: ChainMode };
 
 /** Internal race phase. Public `status` adds the CHAOS overlay on top of RACING/FINAL_LAP. */
 type Phase = "LOBBY" | "COUNTDOWN" | "RACING" | "FINAL_LAP" | "FINISHED";
@@ -82,6 +87,7 @@ export class RaceEngine {
   private actionRing: number[]; // accepted boosts + steer messages per tick
   private actionRingSum = 0; // running sum of actionRing
   private memeEvents: GameEvent[] = [];
+  private chainSource: ChainSource = () => ({ chainMode: "OFF", transactionsSent: 0, transactionsConfirmed: 0, eventsReceived: 0 });
 
   constructor(
     private readonly cfg: RaceConfig,
@@ -105,6 +111,10 @@ export class RaceEngine {
       boostRing: new Array<number>(this.ringLength).fill(0), boostRingSum: 0,
       pendingBoosts: 0, steerDirty: false, lastActivityRate: 0,
     };
+  }
+
+  setChainSource(source: ChainSource): void {
+    this.chainSource = source;
   }
 
   // --- control ------------------------------------------------------------
@@ -279,6 +289,7 @@ export class RaceEngine {
       return state;
     });
 
+    const chain = this.chainSource();
     const boostsPerSecond = teams.reduce((sum, t) => sum + t.boostRate, 0);
     const state: RaceState = {
       status: this.status,
@@ -288,12 +299,12 @@ export class RaceEngine {
         // APPLICATION metrics, measured here over a 1 s window. Not Monad TPS.
         actionsPerSecond: this.actionRingSum,
         boostsPerSecond,
-        // BLOCKCHAIN metrics: only ever fed by the chain layer. Zero until one exists.
-        transactionsSent: 0,
-        transactionsConfirmed: 0,
-        eventsReceived: 0,
+        // BLOCKCHAIN metrics: read from the chain layer (real adapter results only). Zero when chainMode is OFF.
+        transactionsSent: chain.transactionsSent,
+        transactionsConfirmed: chain.transactionsConfirmed,
+        eventsReceived: chain.eventsReceived,
       },
-      chainMode: "OFF",
+      chainMode: chain.chainMode,
     };
     if (this.winner) state.winner = this.winner;
     return state;
