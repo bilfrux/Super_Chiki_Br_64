@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MONAD GRAND PRIX - Lobby</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+
+    /* the existing /test racer, untouched, shown as a background layer */
+    #racer-bg {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: none; z-index: 0;
+    }
+
+    #lobby {
+      position: absolute; inset: 0; z-index: 1;
+      background: rgba(6, 6, 14, 0.82);
+      color: #fff; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 22px; text-align: center; padding: 24px;
+    }
+    #lobby.hidden { display: none; }
+
+    #lobby h1 { font-size: 3em; letter-spacing: 0.05em; margin: 0; }
+    #lobby .scan-to-join { font-size: 1.6em; opacity: 0.9; margin: 0; letter-spacing: 0.08em; }
+
+    #qrcode { background: #fff; padding: 16px; border-radius: 12px; line-height: 0; }
+
+    #lobby .hint { font-size: 1.1em; opacity: 0.75; margin: 0; }
+
+    .team-counts { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+    .team-count {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 1.4em; font-weight: 700;
+      padding: 10px 22px; border-radius: 14px; color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.35);
+      min-width: 150px; justify-content: space-between;
+    }
+    .team-red    { background: rgba(229, 57, 53, 0.85); }
+    .team-blue   { background: rgba(30, 136, 229, 0.85); }
+    .team-green  { background: rgba(67, 160, 71, 0.85); }
+    .team-yellow { background: rgba(253, 216, 53, 0.85); color: #2a2a08; text-shadow: none; }
+  </style>
+</head>
+<body>
+
+  <!-- existing racer engine, embedded as-is (no modification to /test) -->
+  <iframe id="racer-bg" src="/test/v5.teams.html"></iframe>
+
+  <div id="lobby">
+    <h1>🏁 MONAD GRAND PRIX</h1>
+    <p class="scan-to-join">SCAN TO JOIN</p>
+    <div id="qrcode"></div>
+    <p class="hint">Choose your team on your phone</p>
+
+    <div class="team-counts">
+      <div class="team-count team-red">   <span>🔴 RED</span>    <span id="count-red">0</span></div>
+      <div class="team-count team-blue">  <span>🔵 BLUE</span>   <span id="count-blue">0</span></div>
+      <div class="team-count team-green"> <span>🟢 GREEN</span>  <span id="count-green">0</span></div>
+      <div class="team-count team-yellow"><span>🟡 YELLOW</span> <span id="count-yellow">0</span></div>
+    </div>
+  </div>
+
+  <script src="/shared/protocol/events.js"></script>
+  <script src="/booster/mock/client.js"></script>
+  <script src="/game/lobby/vendor/qrcode.min.js"></script>
+  <script>
+    // QR always points at this same app's real, currently-served origin - never a hardcoded/production URL.
+    var joinUrl = window.location.origin + '/join';
+    new QRCode(document.getElementById('qrcode'), {
+      text: joinUrl,
+      width: 220,
+      height: 220
+    });
+
+    MonadClient.subscribeTeamState(function (state) {
+      (state.teams || []).forEach(function (team) {
+        var el = document.getElementById('count-' + team.id);
+        if (el) el.textContent = team.boosters;
+      });
+    }, 1000);
+  </script>
+
+</body>
+</html>

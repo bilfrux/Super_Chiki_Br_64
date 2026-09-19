@@ -1,0 +1,7 @@
+# This Vercel deployment is Member A's test surface only (racer, driver, booster UI).
+# Member B's real backend/contracts are separate and not part of this deploy.
+server/
+contracts/
+.git/
+.DS_Store
+booster/mock/mock-server.py

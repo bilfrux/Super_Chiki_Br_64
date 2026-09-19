@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MONAD GRAND PRIX - Join</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: #0b0b12; color: #fff;
+      font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      touch-action: manipulation;
+    }
+    .screen {
+      min-height: 100dvh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px 16px; text-align: center; gap: 8px;
+    }
+    h1 { font-size: 1.6em; letter-spacing: 0.03em; margin: 0 0 4px; }
+    p.subtitle { font-size: 1.1em; opacity: 0.8; margin: 0 0 28px; }
+    .teams {
+      width: 100%; max-width: 420px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .team-btn {
+      appearance: none; border: none; border-radius: 20px;
+      padding: 28px 8px; font-size: 1.4em; font-weight: 700;
+      color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.35);
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      cursor: pointer; user-select: none;
+      transform: scale(1); transition: transform 0.08s ease-out;
+    }
+    .team-btn:active { transform: scale(0.95); }
+    .team-btn .emoji { font-size: 1.8em; }
+    .team-red    { background: #E53935; }
+    .team-blue   { background: #1E88E5; }
+    .team-green  { background: #43A047; }
+    .team-yellow { background: #FDD835; color: #2a2a08; text-shadow: none; }
+  </style>
+</head>
+<body>
+
+  <div class="screen">
+    <h1>🏁 MONAD GRAND PRIX</h1>
+    <p class="subtitle">Choose your team</p>
+
+    <div class="teams">
+      <button class="team-btn team-red"    data-team="red">   <span class="emoji">🔴</span> RED    </button>
+      <button class="team-btn team-blue"   data-team="blue">  <span class="emoji">🔵</span> BLUE   </button>
+      <button class="team-btn team-green"  data-team="green"><span class="emoji">🟢</span> GREEN  </button>
+      <button class="team-btn team-yellow" data-team="yellow"><span class="emoji">🟡</span> YELLOW </button>
+    </div>
+  </div>
+
+  <script src="/shared/protocol/events.js"></script>
+  <script src="/booster/mock/client.js"></script>
+  <script>
+    document.querySelectorAll('.team-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var teamId = btn.getAttribute('data-team');
+        MonadClient.join(teamId).then(function () {
+          window.location.href = '/booster';
+        });
+      });
+    });
+  </script>
+
+</body>
+</html>

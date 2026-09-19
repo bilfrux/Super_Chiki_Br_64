@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/join", "destination": "/booster/ui/join/index.html" },
+    { "source": "/booster", "destination": "/booster/ui/booster/index.html" },
+    { "source": "/driver", "destination": "/driver/index.html" }
+  ]
+}

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MONAD GRAND PRIX - Booster</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; height: 100%; overflow: hidden;
+      background: #0b0b12; color: #fff;
+      font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      touch-action: manipulation; user-select: none;
+    }
+    .screen {
+      height: 100dvh;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      padding: 20px 16px 32px; text-align: center;
+    }
+    .team-name { font-size: 1.8em; font-weight: 800; letter-spacing: 0.04em; margin: 8px 0 0; }
+    .boosters { font-size: 1.1em; opacity: 0.85; margin: 4px 0 0; }
+    .boosters strong { font-size: 1.3em; }
+    #boost-btn {
+      appearance: none; border: none; border-radius: 50%;
+      width: min(70vw, 320px); height: min(70vw, 320px);
+      font-size: 2em; font-weight: 900; letter-spacing: 0.05em;
+      color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      box-shadow: 0 10px 0 rgba(0,0,0,0.25), 0 12px 30px rgba(0,0,0,0.35);
+      cursor: pointer; transform: translateY(0) scale(1);
+      transition: transform 0.06s ease-out, box-shadow 0.06s ease-out;
+    }
+    #boost-btn:active {
+      transform: translateY(8px) scale(0.97);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 4px 14px rgba(0,0,0,0.3);
+    }
+    .switch-team { margin-top: 18px; background: none; border: none; color: #888; font-size: 0.9em; text-decoration: underline; }
+
+    body.team-red    #boost-btn { background: #E53935; }
+    body.team-blue   #boost-btn { background: #1E88E5; }
+    body.team-green  #boost-btn { background: #43A047; }
+    body.team-yellow #boost-btn { background: #FDD835; color: #2a2a08; text-shadow: none; }
+    body.team-red    .team-name { color: #FF6B66; }
+    body.team-blue   .team-name { color: #6CB6FF; }
+    body.team-green  .team-name { color: #7FD68A; }
+    body.team-yellow .team-name { color: #FDD835; }
+  </style>
+</head>
+<body>
+
+  <div class="screen">
+    <div>
+      <div class="team-name" id="team-name">TEAM</div>
+      <div class="boosters">BOOSTERS: <strong id="boosters-count">0</strong></div>
+    </div>
+
+    <button id="boost-btn">BOOST</button>
+
+    <button class="switch-team" id="switch-team">switch team</button>
+  </div>
+
+  <script src="/shared/protocol/events.js"></script>
+  <script src="/booster/mock/client.js"></script>
+  <script>
+    var teamId = MonadClient.getTeam();
+    if (!teamId) {
+      window.location.href = '/join';
+    } else {
+      document.body.classList.add('team-' + teamId);
+      document.getElementById('team-name').textContent = teamId.toUpperCase() + ' TEAM';
+
+      var countEl     = document.getElementById('boosters-count');
+      var boostBtn     = document.getElementById('boost-btn');
+      var optimisticBoosts = 0; // shown immediately, before the mock server confirms - never block on the network
+
+      MonadClient.subscribeTeamState(function (state) {
+        var team = (state.teams || []).find(function (t) { return t.id === teamId; });
+        if (team) countEl.textContent = team.boosters;
+      }, 1000);
+
+      function fireBoost() {
+        optimisticBoosts += 1;
+        countEl.textContent = Number(countEl.textContent || 0) + 1;
+        boostBtn.classList.toggle('pulsed');
+        if (navigator.vibrate) navigator.vibrate(15); // best-effort - silently does nothing where unsupported
+        MonadClient.sendBoost(teamId); // fire and forget, never awaited - no network delay ever blocks the button
+      }
+
+      boostBtn.addEventListener('click', fireBoost);
+
+      document.getElementById('switch-team').addEventListener('click', function () {
+        window.location.href = '/join';
+      });
+    }
+  </script>
+
+</body>
+</html>

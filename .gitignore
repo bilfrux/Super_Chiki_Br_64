@@ -13,3 +13,6 @@ dist/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+.vercel
+.env*
+.DS_Store
