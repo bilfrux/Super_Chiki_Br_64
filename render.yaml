@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mgp-super-chiki-br-64
+    runtime: docker
+    dockerfilePath: server/Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: ADMIN_KEY
+        value: gcxp79PIgXlQbtBsYSQL0WQFA3LgPgNy
+      - key: PUBLIC_URL
+        value: https://mgp-super-chiki-br-64.onrender.com
