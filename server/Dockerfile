@@ -20,6 +20,10 @@ COPY --from=build /app/server/node_modules ./server/node_modules
 COPY --from=build /app/server/dist ./server/dist
 COPY server/public ./server/public
 COPY booster ./booster
+COPY game ./game
+COPY driver ./driver
+COPY test ./test
+COPY shared ./shared
 USER node
 WORKDIR /app/server
 EXPOSE 8080

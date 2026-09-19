@@ -2,6 +2,10 @@
 
 Everything here is already implemented and tested on the server side. Contract: [PROTOCOL.md](PROTOCOL.md). Types: `import type { ... } from "../shared"`.
 
+## Already wired
+
+The pages in this repo already use the server: `game/net/mgp-client.js` is the shared WebSocket client (origin-relative URL, `?server=` override), used by the big-screen lobby (`game/lobby`), the Driver page (`driver/`) and the race screen (`test/v5.teams.html?live=1`, "LIVE MODE" block). Serve them from the server itself (`npm start`): `/` lobby, `/join` phones, `/driver/`, `/lobby/` operator. The Vercel mock (`api/*`, `booster/mock/*`) is not used by these pages any more. The snippets below are for writing another client.
+
 ## 0. Run the backend
 
 ```sh

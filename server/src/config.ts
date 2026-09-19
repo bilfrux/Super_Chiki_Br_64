@@ -9,7 +9,7 @@ import {
 } from "../../shared/index.js";
 import { DEFAULT_RACE_CONFIG, type RaceConfig } from "./engine.js";
 import { DEFAULT_QUEUE_OPTIONS, type QueueOptions } from "./chain/queue.js";
-import { defaultBoosterDir, defaultLobbyDir } from "./paths.js";
+import { defaultBoosterDir, defaultDriverDir, defaultGameDir, defaultJoinPage, defaultLobbyDir, defaultRacerDir, defaultSharedDir } from "./paths.js";
 
 /** Monad Testnet values from https://docs.monad.xyz/developer-essentials/testnets (see MONAD_RESOURCES.md). */
 export const MONAD_TESTNET_CHAIN_ID = 10143;
@@ -40,6 +40,11 @@ export type ServerConfig = {
   publicUrl?: string;
   boosterDir: string; // static files served at /booster/
   lobbyDir: string; // static files served at /lobby/
+  gameDir: string; // /game/ (big-screen lobby)
+  driverDir: string; // /driver/ (driver phone page)
+  racerDir: string; // /test/ (the race screen)
+  sharedDir: string; // /shared/ (only protocol/*.js and types/*.js are served)
+  joinPage: string; // served at /join (team picker that leads to /booster/)
   rate: {
     boostRatePerSec: number;
     boostBurst: number;
@@ -89,6 +94,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Conf
     publicUrl: env.PUBLIC_URL || undefined,
     boosterDir: env.BOOSTER_DIR || defaultBoosterDir(),
     lobbyDir: env.LOBBY_DIR || defaultLobbyDir(),
+    gameDir: defaultGameDir(),
+    driverDir: defaultDriverDir(),
+    racerDir: defaultRacerDir(),
+    sharedDir: defaultSharedDir(),
+    joinPage: defaultJoinPage(),
     rate: {
       boostRatePerSec: num(env, "BOOST_RATE_PER_SEC", DEFAULT_RATE_LIMITS.BOOST_RATE_PER_SEC, { min: 0.001 }),
       boostBurst: num(env, "BOOST_BURST", DEFAULT_RATE_LIMITS.BOOST_BURST, { min: 1 }),

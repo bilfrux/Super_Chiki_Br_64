@@ -101,6 +101,7 @@
   <script src="common.js"></script>
   <script src="/shared/types/teams.js"></script>
   <script src="/shared/protocol/events.js"></script>
+  <script src="/game/net/mgp-client.js"></script>
   <script>
 
     var fps            = 60;                      // how many 'update' frames per second
@@ -236,6 +237,8 @@
     //=========================================================================
 
     function update(dt) {
+
+      if (Live.active) { Live.update(dt); return; } // ?live=1: the server drives the race (see the LIVE MODE block at the end)
 
       if (RaceState.status !== 'RACING') return; // frozen during LOBBY/COUNTDOWN - render() keeps drawing the parked scene behind the menu
 
@@ -818,6 +821,7 @@
         sprites    = images[1];
         buildTeamCarImages();
         reset({ width: window.innerWidth, height: window.innerHeight });
+        window.racerReady = true; // LIVE MODE waits for this
         Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180;
         updateHud('fast_lap_time', formatTime(Util.toFloat(Dom.storage.fast_lap_time)));
       }
@@ -930,6 +934,199 @@
       }, 1000);
     }
 
+  </script>
+  <script>
+    //=========================================================================
+    // MONAD GRAND PRIX - LIVE MODE (?live=1): the race is driven by the server.
+    //=========================================================================
+    // Adds NO new physics. The server (protocol v1, shared/protocol/PROTOCOL.md) owns positions,
+    // speeds, winner and memes; this block only draws the four team cars where RACE_STATE says
+    // they are. Without ?live=1 nothing here runs and the local single-player demo is unchanged.
+    // RACE_STATE is truth; BOOST / MEME_EVENT are only used for effects.
+    var Live = (function () {
+      if (!/[?&]live=1(&|$)/.test(location.search)) return { active: false };
+
+      var GRID_OFFSETS = [-0.75, -0.25, 0.25, 0.75];
+      var GRID_AHEAD   = 500;    // grid cars start this far ahead of the camera anchor (same as the idle preview grid)
+      var CAMERA_BACK  = 700;    // camera sits this far behind the rearmost car
+      var MAX_GAP      = 30000;  // on screen, gaps between cars saturate here (a whole race is one lap of road, far more than fits in view)
+      var SMOOTH       = 12;     // per-second follow rate: hides the 20 Hz snapshot cadence
+      var live = { active: true, state: null, targets: {}, seenActive: false, net: null, bannerTimer: null, ready: false, pending: null };
+
+      var overlay   = document.getElementById('setup-overlay');
+      var countEl   = document.getElementById('setup-countdown');
+      var valueEl   = document.getElementById('countdown-value');
+      var netPill, banner, metrics;
+
+      function el(tag, css, parent) {
+        var e = document.createElement(tag);
+        e.style.cssText = css;
+        (parent || document.body).appendChild(e);
+        return e;
+      }
+
+      function message(text, size) {
+        document.getElementById('setup-step-count').classList.add('hidden');
+        document.getElementById('setup-step-color').classList.add('hidden');
+        countEl.classList.remove('hidden');
+        valueEl.style.fontSize = size || '3em';
+        valueEl.textContent = text;
+        overlay.classList.remove('hidden');
+      }
+
+      function hideOverlay() { overlay.classList.add('hidden'); }
+
+      // Chaos / meme reactions (visual only; CSS class on the canvas, no gameplay)
+      var css = document.createElement('style');
+      css.textContent =
+        '@keyframes mgpShake { 0%{transform:translate(4px,-3px)} 25%{transform:translate(-5px,2px)} 50%{transform:translate(3px,4px)} 75%{transform:translate(-3px,-4px)} 100%{transform:translate(4px,-3px)} }' +
+        '#canvas.mgp-chaos { animation: mgpShake 0.14s linear infinite; filter: saturate(1.6); }' +
+        '@media (prefers-reduced-motion: reduce) { #canvas.mgp-chaos { animation: none; } }';
+      document.head.appendChild(css);
+
+      function showBanner(text) {
+        if (!banner) banner = el('div', 'position:fixed;left:0;right:0;top:14%;text-align:center;z-index:6;font:900 3.2em Verdana,sans-serif;color:#fff;text-shadow:0 4px 14px #000,0 0 30px #f0f;pointer-events:none');
+        banner.textContent = text;
+        banner.style.display = 'block';
+        clearTimeout(live.bannerTimer);
+        live.bannerTimer = setTimeout(function () { banner.style.display = 'none'; }, 2500);
+      }
+
+      function chainText(s) {
+        var m = s.metrics;
+        // chain numbers are shown only as what they are: real (LIVE), clearly simulated (DEMO), or not at all (OFF)
+        if (s.chainMode === 'LIVE') return 'MONAD TESTNET  tx sent ' + m.transactionsSent + ' / confirmed ' + m.transactionsConfirmed;
+        if (s.chainMode === 'DEMO') return 'DEMO MODE (simulated chain)  tx ' + m.transactionsSent + ' / ' + m.transactionsConfirmed;
+        return 'chain offline';
+      }
+
+      function renderMetrics(s) {
+        if (!metrics) metrics = el('div', 'position:fixed;left:14px;bottom:14px;z-index:3;font:700 0.9em Verdana,sans-serif;color:#fff;text-shadow:0 1px 3px #000;background:rgba(0,0,0,0.45);padding:6px 10px;border-radius:6px;pointer-events:none');
+        metrics.textContent = 'BOOSTS/S ' + Math.round(s.metrics.boostsPerSecond) + '   ' + chainText(s);
+      }
+
+      live.begin = function () {
+        // the four team cars already exist from the idle preview grid: keep exactly those
+        cars = cars.filter(function (c) { return c.team; });
+        cars.forEach(function (c, i) {
+          c.d = GRID_AHEAD + playerZ;
+          c.base = GRID_OFFSETS[i];
+          c.offset = c.base;
+          c.speed = 0;
+        });
+        live.ready = true;
+        message('CONNECTING...', '2.4em');
+      };
+
+      function place(car, z) {
+        var oldSegment = findSegment(car.z);
+        car.z = Util.increase(z, 0, trackLength);
+        car.percent = Util.percentRemaining(car.z, segmentLength);
+        var newSegment = findSegment(car.z);
+        if (oldSegment !== newSegment) {
+          var i = oldSegment.cars.indexOf(car);
+          if (i >= 0) oldSegment.cars.splice(i, 1);
+          newSegment.cars.push(car);
+        }
+      }
+
+      function applyState(s) {
+        live.state = s;
+        RaceState.status = s.status;
+        RaceState.elapsed = s.elapsed;
+        RaceState.teams = s.teams;
+
+        s.teams.forEach(function (t) {
+          var car = findCarByTeamId(t.id);
+          if (!car) return;
+          live.targets[t.id] = { d: GRID_AHEAD + playerZ + t.position * trackLength, offset: (car.base || 0) + t.steer * 0.25, speed: t.speed };
+          var legend = document.querySelector('#teams .team-' + t.id);
+          if (legend) legend.textContent = legend.getAttribute('data-name') + '  ' + t.boosters + ' boosting' + (t.driverConnected ? '  (driver)' : '  (no driver)');
+        });
+
+        document.getElementById('canvas').classList.toggle('mgp-chaos', s.status === 'CHAOS');
+        renderMetrics(s);
+
+        if (s.status === 'LOBBY') {
+          if (live.seenActive) { location.href = MgpClient.link('/'); return; } // race was reset: back to the lobby screen
+          message('WAITING FOR THE RACE TO START', '2em');
+        } else if (s.status === 'COUNTDOWN') {
+          live.seenActive = true;
+          message(String(Math.max(1, Math.ceil(-s.elapsed))), '9em');
+        } else if (s.status === 'FINISHED') {
+          live.seenActive = true;
+          var w = TEAMS.filter(function (t) { return t.id === s.winner; })[0];
+          message((w ? w.name : String(s.winner).toUpperCase()) + ' WINS!', '3.2em');
+        } else {
+          live.seenActive = true;
+          hideOverlay();
+        }
+      }
+
+      // Called from update(dt) instead of the local physics.
+      // Server positions are real progress (0..1 of the race). Cars are drawn relative to the leader with
+      // gaps that grow with the real gap but saturate at MAX_GAP, so the whole field is always on screen
+      // while the road still scrolls at the leader's real pace. Order and "who is ahead" are always exact.
+      live.update = function (dt) {
+        if (!live.ready) return;
+        if (live.pending) { var p = live.pending; live.pending = null; applyState(p); }
+        if (!live.state) return;
+        var n, car, tgt, gap, k = Math.min(1, dt * SMOOTH), leadD = -Infinity, lead = null, maxVis = 0;
+        for (n = 0; n < cars.length; n++) {
+          car = cars[n];
+          tgt = live.targets[car.team.id];
+          if (!tgt) continue;
+          car.d      += (tgt.d - car.d) * k;
+          car.offset += (tgt.offset - car.offset) * k;
+          car.speed   = tgt.speed * maxSpeed / 1.5;
+          if (car.d > leadD) { leadD = car.d; lead = car; }
+        }
+        if (!lead) return;
+        for (n = 0; n < cars.length; n++) {
+          car = cars[n];
+          if (!live.targets[car.team.id]) continue;
+          gap = leadD - car.d;
+          car.vis = MAX_GAP * (1 - Math.exp(-gap / MAX_GAP));
+          if (car.vis > maxVis) maxVis = car.vis;
+          place(car, leadD - car.vis);
+        }
+        var startPosition = position;
+        position = Util.increase(leadD - maxVis - CAMERA_BACK - playerZ, 0, trackLength);
+        speed = lead.speed;
+        var seg = findSegment(position + playerZ);
+        var move = position - startPosition; if (move < -trackLength / 2) move += trackLength;
+        skyOffset  = Util.increase(skyOffset,  skySpeed  * seg.curve * move / segmentLength, 1);
+        hillOffset = Util.increase(hillOffset, hillSpeed * seg.curve * move / segmentLength, 1);
+        treeOffset = Util.increase(treeOffset, treeSpeed * seg.curve * move / segmentLength, 1);
+        updateHud('speed', Math.round(lead.speed / maxSpeed * 190));
+        updateHud('current_lap_time', formatTime(Math.max(0, live.state.elapsed)));
+      };
+
+      // ---- connection ----
+      function connect() {
+        netPill = el('div', 'position:fixed;right:14px;top:10px;z-index:6;font:700 0.8em Verdana,sans-serif;color:#fff;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:6px;pointer-events:none');
+        TEAMS.forEach(function (t) { var e = document.querySelector('#teams .team-' + t.id); if (e) e.setAttribute('data-name', e.textContent.trim()); });
+        live.net = MgpClient.connect({
+          role: 'screen',
+          onStatus: function (st) {
+            netPill.textContent = st === 'online' ? 'LIVE' : st === 'connecting' ? 'CONNECTING...' : st === 'offline' ? 'OFFLINE - RECONNECTING...' : st.toUpperCase();
+            netPill.style.background = st === 'online' ? 'rgba(20,140,60,0.8)' : 'rgba(160,30,30,0.8)';
+            if (st === 'offline' && live.ready) message('RECONNECTING...', '2.4em');
+          },
+          onState: function (s) { live.pending = s; }, // applied on the next frame: RACE_STATE is the truth, latest one wins
+          onEvent: function (e) {
+            if (e.type === 'MEME_EVENT') showBanner(e.event.name + '!  (' + e.team.toUpperCase() + ')');
+          }
+        });
+      }
+
+      // wait until the racer assets are loaded and the road is built, then start
+      var wait = setInterval(function () {
+        if (window.racerReady) { clearInterval(wait); live.begin(); connect(); }
+      }, 50);
+
+      return live;
+    })();
   </script>
 
 </body>

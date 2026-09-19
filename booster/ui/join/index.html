@@ -61,7 +61,8 @@
       btn.addEventListener('click', function () {
         var teamId = btn.getAttribute('data-team');
         MonadClient.join(teamId).then(function () {
-          window.location.href = '/booster';
+          // the server-served Booster page (WebSocket, protocol v1) joins the chosen team
+          window.location.href = '/booster/?team=' + encodeURIComponent(teamId);
         });
       });
     });

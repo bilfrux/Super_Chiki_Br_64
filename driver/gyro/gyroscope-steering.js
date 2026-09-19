@@ -14,6 +14,8 @@
 var GyroscopeSteering = (function () {
 
   var SENSITIVITY = 25; // degrees of tilt from center that map to full lock (-1 or +1)
+  var DEAD_ZONE   = 0.06; // |value| below this counts as "straight" (hand tremor, sensor noise); the rest is rescaled so full lock is still 1
+  var SMOOTHING   = 0.35; // 0..1: how much of the new reading is taken per event (1 = raw, lower = smoother but slower)
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -34,7 +36,20 @@ var GyroscopeSteering = (function () {
     return Promise.resolve();
   }
 
-  function create(target) {
+  // dead zone + rescale: 0 inside the zone, then a straight ramp to +-1 so full lock is unchanged
+  function applyDeadZone(value, zone) {
+    var a = Math.abs(value);
+    if (a <= zone) return 0;
+    return (value < 0 ? -1 : 1) * ((a - zone) / (1 - zone));
+  }
+
+  // options (all optional): { sensitivity: degrees to full lock, deadZone: 0..0.5, smoothing: 0..1 }
+  function create(target, options) {
+    options = options || {};
+    var sensitivity = options.sensitivity || SENSITIVITY;
+    var deadZone    = options.deadZone !== undefined ? options.deadZone : DEAD_ZONE;
+    var smoothing   = options.smoothing !== undefined ? options.smoothing : SMOOTHING;
+    var smoothed    = 0;
     var centerGamma = null; // calibration baseline - the first reading becomes "center"
 
     function handleOrientation(event) {
@@ -43,8 +58,11 @@ var GyroscopeSteering = (function () {
 
       if (centerGamma === null) centerGamma = gamma;
 
-      var value = clamp((gamma - centerGamma) / SENSITIVITY, -1, 1);
-      target.set(value);
+      var raw = clamp((gamma - centerGamma) / sensitivity, -1, 1);
+      var value = applyDeadZone(raw, deadZone);
+      smoothed = smoothed + (value - smoothed) * smoothing; // basic low-pass filter
+      if (Math.abs(smoothed) < 0.01) smoothed = 0;          // settle exactly on "straight"
+      target.set(smoothed);
     }
 
     return {
@@ -61,6 +79,7 @@ var GyroscopeSteering = (function () {
       // treats the phone's current tilt as the new center (call again any time the driver re-grips the phone)
       recalibrate: function () {
         centerGamma = null;
+        smoothed = 0;
       },
       isSupported: isSupported
     };

@@ -55,7 +55,9 @@ ws.onopen = () => ws.send(JSON.stringify({ type: "HELLO", protocolVersion: 1, ro
 | `/qr.svg` | QR code of the join URL. `?host=<address>` picks one of the detected addresses (nothing else is accepted) |
 | `/health` | JSON status |
 | `/ws` | WebSocket (protocol v1) |
-| `/` | redirects to `/booster/` |
+| `/` | big-screen lobby (`game/lobby`); hands over to `/test/v5.teams.html?live=1` when the race starts |
+| `/join` | team picker for phones (leads to `/booster/?team=<id>`) |
+| `/game/` `/driver/` `/test/` | Member A pages: lobby, Driver page, race screen. `/shared/` serves only `protocol/*.js` and `types/*.js` |
 
 Member A: the QR is just an `<img src="/qr.svg">`, so the big-screen game can show it in its own lobby without any server change.
 

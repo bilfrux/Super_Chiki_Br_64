@@ -27,6 +27,8 @@ export type Mount = {
   prefix: string;
   /** Directory on disk. */
   dir: string;
+  /** If set, only paths (relative to the mount, forward slashes) matching this are served. */
+  allow?: RegExp;
 };
 
 function send(res: ServerResponse, status: number, body: string): void {
@@ -67,6 +69,11 @@ export async function serveMount(req: IncomingMessage, res: ServerResponse, urlP
     return true;
   }
 
+  if (mount.allow && !mount.allow.test(rel)) {
+    send(res, 404, "Not found");
+    return true;
+  }
+
   const root = resolve(mount.dir);
   const file = resolve(join(root, rel));
   if (file !== root && !file.startsWith(root + sep)) {
@@ -93,4 +100,24 @@ export async function serveMount(req: IncomingMessage, res: ServerResponse, urlP
     send(res, 404, "Not found");
   }
   return true;
+}
+
+/** Serve exactly one known file (used for routes such as /join). GET/HEAD only. */
+export async function serveFile(req: IncomingMessage, res: ServerResponse, file: string): Promise<void> {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    res.setHeader("allow", "GET, HEAD");
+    return send(res, 405, "Method not allowed");
+  }
+  try {
+    const body = await readFile(file);
+    res.writeHead(200, {
+      "content-type": MIME[extname(file).toLowerCase()] ?? "application/octet-stream",
+      "content-length": body.length,
+      "cache-control": "no-cache",
+      "x-content-type-options": "nosniff",
+    });
+    res.end(req.method === "HEAD" ? undefined : body);
+  } catch {
+    send(res, 404, "Not found");
+  }
 }

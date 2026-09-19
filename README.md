@@ -35,9 +35,19 @@ Lobby + QR (open this on the big screen): http://localhost:8080/lobby/
 Phones join at (encoded in the QR):       http://192.168.1.42:8080/booster/
 ```
 
-1. Open the **lobby URL** on the big screen. Enter `ADMIN_KEY` under OPERATOR to get START RACE / RESET.
-2. Phones on the **same Wi-Fi** scan the QR and land on the Booster page (team assigned automatically).
-3. No phones handy? `npm run demo` (server already running) plays a scripted 4-team race.
+The server also serves the whole front-end from the **same origin as the WebSocket**, so nothing needs configuring:
+
+| URL | What | Who opens it |
+|---|---|---|
+| `/` | big-screen lobby (QR, team counts). When the race starts it hands over to the race screen `/test/v5.teams.html?live=1` and returns here after RESET | the big screen |
+| `/lobby/` | operator page: enter `ADMIN_KEY`, press START RACE / RESET, see application vs blockchain metrics | the operator |
+| `/join` | team picker; leads to `/booster/?team=<id>` | phones (this is what the QR encodes) |
+| `/booster/` | Booster UI | phones |
+| `/driver/` | Driver page (gyroscope steering); `?team=blue` picks a car | the four drivers |
+
+1. Open `/` on the big screen and `/lobby/` on the operator laptop (enter `ADMIN_KEY`).
+2. Phones on the **same Wi-Fi** scan the QR, pick a team and boost. Four drivers open `/driver/`.
+3. Press START RACE in the operator page. No phones handy? `npm run demo` (server already running) plays a scripted 4-team race.
 
 ## 2. Environment variables
 
@@ -123,14 +133,15 @@ PORT=8080 ADMIN_KEY=... PUBLIC_URL=https://... node dist/server/src/index.js
 ## 6. WebSocket endpoint & game/server connection configuration
 
 - Endpoint: **`/ws`** on the same host and port as the HTTP server: `ws://<host>:<PORT>/ws` locally, `wss://<public-host>/ws` behind HTTPS. Protocol v1, JSON text frames.
-- The pages served by the server (`/booster/`, `/lobby/`) build the URL from `location`, so they need no configuration.
-- **The game (`/game`) and Driver page (`/driver`)** must know where the server is: use the same origin when the server serves them, otherwise a configurable base URL (`ws(s)://<host>/ws`, i.e. `PUBLIC_URL` with the scheme swapped). Roles: game screen `{ role: "screen" }`, driver phone `{ role: "driver" }`, see [`GAME_INTEGRATION.md`](shared/protocol/GAME_INTEGRATION.md) for messages, reconnection and a drop-in client.
+- Every page the server serves (`/`, `/lobby/`, `/join`, `/booster/`, `/driver/`, `/test/v5.teams.html`) builds the URL from its own origin (http to ws, https to wss), so they need no configuration.
+- The game and Driver pages all use **`game/net/mgp-client.js`** (`MgpClient.connect({ role, ... })`): HELLO with protocol version 1, token in localStorage, reconnect with backoff, throttled `DRIVER_STEER` (30 Hz). If a page is hosted somewhere other than the server, open it with **`?server=https://your-host`** (it becomes `wss://your-host/ws`); `MgpClient.link(path)` carries the override when navigating. Roles: big screen and race screen `{ role: "screen" }`, driver phone `{ role: "driver" }`. Details: [`GAME_INTEGRATION.md`](shared/protocol/GAME_INTEGRATION.md).
+- The race screen (`/test/v5.teams.html`) runs the local single-player demo unless opened with **`?live=1`**, which makes the server the only source of truth (positions, winner, memes). The big-screen lobby opens it that way automatically.
 - The QR image is just `GET /qr.svg`; the game can embed it.
 - Anyone with `ADMIN_KEY` can START/RESET through role `admin` on this same endpoint.
 
 ## 7. Booster public URL
 
-Phones open **`<PUBLIC_URL>/booster/`** (`/` redirects there). That URL is what the QR code encodes, and what the lobby shows under it.
+Phones open **`<PUBLIC_URL>/join`** (team picker, then `/booster/?team=<id>`; opening `<PUBLIC_URL>/booster/` directly also works and auto-assigns a team). The big-screen lobby at `/` encodes `/join` in its QR; the operator page `/lobby/` shows the server-computed join URL (`GET /api/join`).
 
 - **Same Wi-Fi (no `PUBLIC_URL`):** the server picks this machine's LAN address. If it picks the wrong adapter, use the "Wrong address?" buttons on the lobby page.
 - **Public host or tunnel:** set `PUBLIC_URL=https://your-host` (no path, no trailing slash needed). Check `GET /api/join` → `joinUrl`. Over HTTPS the pages automatically use `wss://`.

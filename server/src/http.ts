@@ -6,14 +6,16 @@
 //   /qr.svg      the QR code for that URL, as SVG
 //   /health      JSON status
 //   /api/metrics JSON: application vs blockchain metrics for the lobby
-//   /            redirects to /booster/ (typing the bare address makes you a booster)
+//   /            the big-screen lobby (game/lobby); it leads to the race screen (/test/v5.teams.html?live=1)
+//   /join        team picker for phones; leads to /booster/?team=<id>
+//   /game/ /driver/ /test/ /shared/   Member A's pages (served from the same origin as /ws)
 //   /ws          WebSocket upgrade (handled by the ws library, not here)
 
 import type { IncomingMessage, RequestListener, ServerResponse } from "node:http";
 import type { ServerConfig } from "./config.js";
 import { joinInfo } from "./network.js";
 import { qrSvg } from "./qr.js";
-import { serveMount, type Mount } from "./staticFiles.js";
+import { serveFile, serveMount, type Mount } from "./staticFiles.js";
 
 export const BOOSTER_PATH = "/booster/";
 export const LOBBY_PATH = "/lobby/";
@@ -36,6 +38,10 @@ export function createRequestHandler(deps: HttpDeps): RequestListener {
   const mounts: Mount[] = [
     { prefix: BOOSTER_PATH, dir: config.boosterDir },
     { prefix: LOBBY_PATH, dir: config.lobbyDir },
+    { prefix: "/game/", dir: config.gameDir },
+    { prefix: "/driver/", dir: config.driverDir },
+    { prefix: "/test/", dir: config.racerDir },
+    { prefix: "/shared/", dir: config.sharedDir, allow: /^(protocol|types)\/[\w.-]+\.js$/ },
   ];
 
   const currentJoin = () =>
@@ -64,10 +70,9 @@ export function createRequestHandler(deps: HttpDeps): RequestListener {
         return void res.end(qrSvg(chosen.url));
       }
 
-      if (path === "/") {
-        res.writeHead(302, { location: BOOSTER_PATH });
-        return void res.end();
-      }
+      // The big screen opens the bare address; phones scan the QR (which points at /join).
+      if (path === "/") return void (await serveMount(req, res, "/game/lobby/", { prefix: "/game/", dir: config.gameDir }));
+      if (path === "/join") return void (await serveFile(req, res, config.joinPage));
 
       for (const m of mounts) if (await serveMount(req, res, path, m)) return;
 

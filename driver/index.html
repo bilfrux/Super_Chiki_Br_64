@@ -57,6 +57,20 @@
 
     #fallback { display: none; font-size: 1.1em; color: #FDD835; max-width: 340px; line-height: 1.5; }
     #fallback.visible { display: block; }
+
+    /* touch steering fallback: two big hold-to-steer zones */
+    #touch-zones { display: none; width: 100%; max-width: 460px; gap: 12px; }
+    #touch-zones.visible { display: flex; }
+    .zone {
+      flex: 1; height: 34vh; min-height: 170px; border-radius: 22px; border: 0;
+      color: #fff; font: 900 1.35em/1.2 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; letter-spacing: 0.04em;
+      background: #1E88E5; box-shadow: 0 8px 0 rgba(0,0,0,0.3);
+      touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+      display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px;
+    }
+    #zone-right { background: #E53935; }
+    .zone.active { transform: translateY(6px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); filter: brightness(1.35); }
+    #mode-btn { background: none; border: 1px solid #555; color: #ccc; border-radius: 10px; padding: 8px 16px; font-size: 0.9em; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -67,6 +81,7 @@
 
     <button id="start-btn">START DRIVER</button>
     <p id="status"></p>
+    <p id="net-status" style="font-size:0.95em;min-height:1.4em;opacity:0.9"></p>
 
     <div id="indicator-wrap">
       <div class="labels"><span>LEFT</span><span>CENTER</span><span>RIGHT</span></div>
@@ -75,10 +90,17 @@
       <button id="recalibrate-btn">Recalibrate center</button>
     </div>
 
-    <p id="fallback">Gyroscope unavailable — use keyboard</p>
+    <p id="fallback">Gyroscope unavailable — steer with the touch zones</p>
+
+    <div id="touch-zones">
+      <button class="zone" id="zone-left" type="button">◀<br>STEER LEFT</button>
+      <button class="zone" id="zone-right" type="button">STEER RIGHT<br>▶</button>
+    </div>
+    <button id="mode-btn" type="button">Use touch steering</button>
   </div>
 
   <script src="/driver/gyro/gyroscope-steering.js"></script>
+  <script src="/game/net/mgp-client.js"></script>
   <script>
     var dot            = document.getElementById('dot');
     var valueText      = document.getElementById('value-text');
@@ -90,22 +112,103 @@
 
     var gotReading = false; // true as soon as a single real orientation reading has arrived
 
-    // Local test-mode target for THIS step only: same shape as the racer's real
-    // SteeringInput (value + set(value)). Proves GyroscopeSteering -> .set(value)
-    // works end-to-end without any network. A later (WebSocket) step will send
-    // this same value to the real racer instead of just drawing it here.
+    // Connection to the server (protocol v1, /ws on the same origin; ?server=https://host overrides).
+    // Steering is sent as DRIVER_STEER (<= 30 Hz); the server owns the car, this page only sends the number.
+    var netStatusEl = document.getElementById('net-status');
+    var params = new URLSearchParams(location.search);
+    var net = MgpClient.connect({
+      role: 'driver',
+      team: params.get('team') || undefined,
+      onStatus: function (s, detail) {
+        if (s === 'online') netStatusEl.textContent = 'Connected - you drive the ' + String(detail.team).toUpperCase() + ' car';
+        else if (s === 'connecting') netStatusEl.textContent = 'Connecting to the race...';
+        else if (s === 'offline') netStatusEl.textContent = 'Connection lost - reconnecting...';
+        else if (s === 'seat-taken') netStatusEl.textContent = 'That driver seat is taken. Try another team: ?team=blue';
+        else if (s === 'replaced') netStatusEl.textContent = 'Opened on another device or tab.';
+        else if (s === 'outdated') netStatusEl.textContent = 'This page is out of date. Reload it.';
+      }
+    });
+
+    // Two ways to steer, one output. 'gyro' = phone tilt (calibrated, with dead zone and smoothing in
+    // GyroscopeSteering). 'touch' = hold the LEFT / RIGHT zones (used when the gyroscope cannot work:
+    // plain http on a phone, no sensor, permission refused). Both end in output(value) -> DRIVER_STEER (<= 30 Hz).
+    var mode = 'gyro';          // 'gyro' | 'touch'
+    var autoTouch = false;      // touch mode was chosen automatically (so a late gyro reading may switch back)
+    var modeBtn = document.getElementById('mode-btn');
+    var touchZones = document.getElementById('touch-zones');
+
+    function output(value) {
+      net.steer(value);
+      indicatorWrap.classList.add('visible');
+      renderIndicator(value);
+    }
+
+    // The gyroscope module calls set(); the racer-style interface is kept.
     var SteeringInput = {
       value: 0,
       set: function (value) {
-        this.value = value;
         gotReading = true;
-        // self-heals even if the "no signal" fallback below already fired once -
-        // any real reading, whenever it arrives, is proof the gyroscope works
-        indicatorWrap.classList.add('visible');
+        if (mode === 'touch') {
+          if (!autoTouch) return;        // the driver chose touch on purpose: ignore the gyro
+          setMode('gyro');               // a real reading arrived after an automatic fallback: it works after all
+        }
+        this.value = value;
         fallbackEl.classList.remove('visible');
-        renderIndicator(value);
+        output(value);
       }
     };
+
+    var touch = { left: false, right: false, target: 0, value: 0, raf: 0 };
+    function touchLoop() {
+      touch.raf = 0;
+      if (mode !== 'touch') return;
+      touch.target = (touch.left ? -1 : 0) + (touch.right ? 1 : 0);
+      var next = touch.value + (touch.target - touch.value) * 0.25;      // short ramp: no jerk when a finger lands
+      if (Math.abs(next - touch.target) < 0.02) next = touch.target;
+      if (next !== touch.value) { touch.value = next; SteeringInput.value = next; output(next); }
+      if (touch.value !== touch.target) touch.raf = requestAnimationFrame(touchLoop);
+    }
+    function touchKick() { if (!touch.raf) touch.raf = requestAnimationFrame(touchLoop); }
+
+    function bindZone(id, side) {
+      var el = document.getElementById(id);
+      function down(e) { e.preventDefault(); touch[side] = true; el.classList.add('active'); touchKick(); }
+      function up(e) { if (e) e.preventDefault(); touch[side] = false; el.classList.remove('active'); touchKick(); }
+      el.addEventListener('pointerdown', down);
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (n) { el.addEventListener(n, up); });
+      el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    }
+    bindZone('zone-left', 'left');
+    bindZone('zone-right', 'right');
+    window.addEventListener('keydown', function (e) { // desktop testing
+      if (e.key === 'ArrowLeft') { touch.left = true; touchKick(); } else if (e.key === 'ArrowRight') { touch.right = true; touchKick(); }
+    });
+    window.addEventListener('keyup', function (e) {
+      if (e.key === 'ArrowLeft') { touch.left = false; touchKick(); } else if (e.key === 'ArrowRight') { touch.right = false; touchKick(); }
+    });
+
+    function setMode(m, note, auto) {
+      mode = m;
+      autoTouch = m === 'touch' && !!auto;
+      touchZones.classList.toggle('visible', m === 'touch');
+      modeBtn.textContent = m === 'touch' ? 'Use gyroscope' : 'Use touch steering';
+      touch.left = touch.right = false;
+      if (m === 'touch') {
+        indicatorWrap.classList.add('visible');
+        renderIndicator(touch.value);
+        if (note) { fallbackEl.textContent = note; fallbackEl.classList.add('visible'); }
+      } else {
+        fallbackEl.classList.remove('visible');
+        touch.value = 0;
+        output(0);
+      }
+    }
+    modeBtn.addEventListener('click', function () {
+      if (mode === 'touch') { gotReading = false; setMode('gyro'); } else setMode('touch', null, false);
+    });
+
+    // The gyroscope only works on secure pages (https) in modern phone browsers.
+    var canUseGyro = window.isSecureContext !== false;
 
     function renderIndicator(value) {
       var pct = (value + 1) / 2 * 100; // -1..1 -> 0%..100%
@@ -115,10 +218,8 @@
     }
 
     function showFallback(message) {
-      fallbackEl.textContent = message || 'Gyroscope unavailable — use keyboard';
-      fallbackEl.classList.add('visible');
-      indicatorWrap.classList.remove('visible');
       statusEl.textContent = '';
+      setMode('touch', message || 'Gyroscope unavailable - steer with the touch zones', true);
     }
 
     var gyro = GyroscopeSteering.create(SteeringInput);
@@ -146,7 +247,9 @@
       gyro.recalibrate();
     });
 
-    if (!GyroscopeSteering.create(SteeringInput).isSupported()) {
+    if (!canUseGyro) {
+      showFallback('Gyroscope needs HTTPS on phones - steer with the touch zones');
+    } else if (!GyroscopeSteering.create(SteeringInput).isSupported()) {
       startBtn.disabled = true;
       showFallback();
     }

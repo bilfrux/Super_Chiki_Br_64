@@ -24,3 +24,10 @@ export function defaultBoosterDir(): string {
 export function defaultLobbyDir(): string {
   return join(findRepoRoot(), "server", "public", "lobby");
 }
+
+/** Member A's front-ends, served from the same origin as the WebSocket so no URL needs configuring. */
+export const defaultGameDir = (): string => join(findRepoRoot(), "game");
+export const defaultDriverDir = (): string => join(findRepoRoot(), "driver");
+export const defaultRacerDir = (): string => join(findRepoRoot(), "test"); // the race screen (test/v5.teams.html)
+export const defaultSharedDir = (): string => join(findRepoRoot(), "shared");
+export const defaultJoinPage = (): string => join(findRepoRoot(), "booster", "ui", "join", "index.html");

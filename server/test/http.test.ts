@@ -65,9 +65,9 @@ test("serves the Booster UI with correct content types", async () => {
   });
 });
 
-test("redirects: /booster → /booster/, /lobby → /lobby/, / → /booster/", async () => {
+test("redirects: /booster → /booster/, /lobby → /lobby/, /driver → /driver/", async () => {
   await withServer({}, async (_base, server) => {
-    for (const [from, to, status] of [["/booster", "/booster/", 301], ["/lobby", "/lobby/", 301], ["/", "/booster/", 302]] as const) {
+    for (const [from, to, status] of [["/booster", "/booster/", 301], ["/lobby", "/lobby/", 301], ["/driver", "/driver/", 301]] as const) {
       const r = await rawGet(server.port, from);
       assert.equal(r.status, status, from);
       assert.equal(r.headers.location, to);
@@ -236,4 +236,37 @@ test("the Booster page only ever sends the protocol's client messages", () => {
   assert.deepEqual([...new Set(sent)].sort(), ["BOOST", "HELLO"]);
   assert.doesNotMatch(src, /"CONTROL"|"DRIVER_STEER"|count:|amount:/, "no CONTROL, steering or boost counts from a booster");
   assert.match(src, /role: "booster"/);
+});
+
+test("Member A's pages are served from the same origin as /ws: / (lobby), /join, /driver/, race screen, MgpClient, shared JS only", async () => {
+  await withServer({}, async (_base, server) => {
+    const page = async (path: string) => rawGet(server.port, path);
+    const lobby = await page("/");
+    assert.equal(lobby.status, 200);
+    assert.match(lobby.body, /SCAN TO JOIN/);
+    assert.match(lobby.body, /mgp-client\.js/, "lobby uses the WebSocket client");
+    assert.doesNotMatch(lobby.body, /booster\/mock\/client\.js/, "lobby no longer polls the mock HTTP API");
+    const join = await page("/join");
+    assert.equal(join.status, 200);
+    assert.match(join.body, /Choose your team/);
+    assert.match(join.body, /\/booster\/\?team=/, "team picker leads to the server-served Booster with the chosen team");
+    const driver = await page("/driver/");
+    assert.equal(driver.status, 200);
+    assert.match(driver.body, /MgpClient\.connect\(\{\s*role: 'driver'/);
+    assert.equal((await page("/driver/gyro/gyroscope-steering.js")).status, 200);
+    const racer = await page("/test/v5.teams.html");
+    assert.equal(racer.status, 200);
+    assert.match(racer.body, /LIVE MODE/);
+    assert.equal((await page("/test/common.js")).status, 200);
+    const client = await page("/game/net/mgp-client.js");
+    assert.equal(client.status, 200);
+    assert.match(client.headers["content-type"] as string, /^text\/javascript/);
+    // the client builds its URL from the page origin; no host is hardcoded anywhere
+    assert.doesNotMatch(client.body, /localhost|127\.0\.0\.1|https?:\/\/[a-z0-9.-]+\.[a-z]{2,}/i);
+    assert.equal((await page("/shared/protocol/events.js")).status, 200);
+    // /shared exposes only protocol/*.js and types/*.js, never TypeScript sources or docs
+    for (const hidden of ["/shared/protocol/PROTOCOL.md", "/shared/protocol/messages.ts", "/shared/package.json", "/shared/index.ts", "/shared/node_modules/x.js"]) {
+      assert.equal((await page(hidden)).status, 404, hidden);
+    }
+  });
 });
