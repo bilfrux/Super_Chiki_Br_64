@@ -269,7 +269,7 @@
           if (countEl)  countEl.textContent = team.boosters;
           if (driverEl) driverEl.classList.toggle('active', !!team.driverConnected);
         });
-        if (state.status !== 'LOBBY') window.location.href = MgpClient.link('/test/v5.teams.html?live=1');
+        if (state.status !== 'LOBBY') window.location.href = MgpClient.link('/test/v5.teams.html?live=1&split=1');
       }
     });
 
