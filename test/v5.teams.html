@@ -805,7 +805,7 @@
         cars.push(car);
       });
 
-      addTrafficCars(150);
+      addTrafficCars(60);
     }
 
     // obstacle cars/trucks, same population approach as v4.final.html - shared by the local
@@ -1113,7 +1113,7 @@
           place(c, c.d);
         });
 
-        addTrafficCars(150); // obstacle cars/trucks to dodge - same population as the local single-player mode
+        addTrafficCars(60); // obstacle cars/trucks to dodge - thinned out, felt too crowded
 
         live.ready = true;
         message('CONNECTING...', '2.4em');
@@ -1187,7 +1187,7 @@
           crashed = live.crashedUntil[car.team.id] && now < live.crashedUntil[car.team.id];
           car.d      += (tgt.d - car.d) * k;
           car.offset += (tgt.offset - car.offset) * k;
-          car.speed   = crashed ? 0 : tgt.speed * maxSpeed / 2; // visual scroll speed only (real race progress is server-side and unaffected) - toned down a bit, felt too fast
+          car.speed   = crashed ? 0 : tgt.speed * maxSpeed / 2.6; // visual scroll speed only (real race progress is server-side and unaffected) - toned down a bit more, still felt fast
           if (car.d > leadD) { leadD = car.d; lead = car; }
         }
         if (!lead) return;
