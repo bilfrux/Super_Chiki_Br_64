@@ -1110,7 +1110,11 @@
         s.teams.forEach(function (t) {
           var car = findCarByTeamId(t.id);
           if (!car) return;
-          live.targets[t.id] = { d: GRID_AHEAD + playerZ + t.position * trackLength, offset: (car.base || 0) + t.steer * 0.25, speed: t.speed };
+          // full steering lock should be clearly visible: sweep most of the road width, not just a
+          // quarter of it, while still keeping the car mostly on the drawn track (+-0.9 max) and
+          // a touch of grid spread from its starting lane so 4 cars don't render on top of each other
+          var laneOffset = Util.limit((car.base || 0) * 0.35 + t.steer * 0.75, -0.9, 0.9);
+          live.targets[t.id] = { d: GRID_AHEAD + playerZ + t.position * trackLength, offset: laneOffset, speed: t.speed };
           var legend = document.querySelector('#teams .team-' + t.id);
           if (legend) legend.textContent = legend.getAttribute('data-name') + '  ' + t.boosters + ' boosting' + (t.driverConnected ? '  (driver)' : '  (no driver)');
         });
@@ -1151,7 +1155,7 @@
           if (!tgt) continue;
           car.d      += (tgt.d - car.d) * k;
           car.offset += (tgt.offset - car.offset) * k;
-          car.speed   = tgt.speed * maxSpeed / 1.5;
+          car.speed   = tgt.speed * maxSpeed / 2; // visual scroll speed only (real race progress is server-side and unaffected) - toned down a bit, felt too fast
           if (car.d > leadD) { leadD = car.d; lead = car; }
         }
         if (!lead) return;
