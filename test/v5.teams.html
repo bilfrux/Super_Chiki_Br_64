@@ -965,7 +965,35 @@
       var CAMERA_BACK  = 700;    // camera sits this far behind the rearmost car
       var MAX_GAP      = 30000;  // on screen, gaps between cars saturate here (a whole race is one lap of road, far more than fits in view)
       var SMOOTH       = 12;     // per-second follow rate: hides the 20 Hz snapshot cadence
-      var live = { active: true, state: null, targets: {}, seenActive: false, net: null, bannerTimer: null, ready: false, pending: null };
+      var live = { active: true, state: null, targets: {}, seenActive: false, net: null, bannerTimer: null, ready: false, pending: null, hitFlash: {}, hitCooldown: {} };
+
+      // Cosmetic-only side-swipe feedback: real progress stays 100% server-authoritative (per
+      // PROTOCOL.md the server has no physics/collisions at all), this only flashes/shakes the
+      // team's own quadrant for a moment when its car's screen box overlaps a traffic car's.
+      function checkCollisions() {
+        var now = Date.now(), n, car, carSeg, carW, s, seg, j, other, otherW, hit;
+        for (n = 0; n < cars.length; n++) {
+          car = cars[n];
+          if (!car.team) continue;
+          if (live.hitCooldown[car.team.id] && now < live.hitCooldown[car.team.id]) continue;
+          carSeg = findSegment(car.z);
+          carW = car.sprite.w * SPRITES.SCALE;
+          hit = false;
+          for (s = -1; s <= 1 && !hit; s++) {
+            seg = segments[(carSeg.index + s + segments.length) % segments.length];
+            for (j = 0; j < seg.cars.length; j++) {
+              other = seg.cars[j];
+              if (other.team) continue;
+              otherW = other.sprite.w * SPRITES.SCALE;
+              if (Util.overlap(car.offset, carW, other.offset, otherW, 0.85)) { hit = true; break; }
+            }
+          }
+          if (hit) {
+            live.hitCooldown[car.team.id] = now + 900; // don't re-trigger every frame while still touching
+            live.hitFlash[car.team.id] = now + 350;    // visual flash duration
+          }
+        }
+      }
       live.split = /[?&]split=1(&|$)/.test(location.search); // ?live=1&split=1: 4 independent per-team chase cameras instead of one shared view
 
       var overlay   = document.getElementById('setup-overlay');
@@ -1082,7 +1110,11 @@
         s.teams.forEach(function (t) {
           var car = findCarByTeamId(t.id);
           if (!car) return;
-          live.targets[t.id] = { d: GRID_AHEAD + playerZ + t.position * trackLength, offset: (car.base || 0) + t.steer * 0.25, speed: t.speed };
+          // full steering lock should be clearly visible: sweep most of the road width, not just a
+          // quarter of it, while still keeping the car mostly on the drawn track (+-0.9 max) and
+          // a touch of grid spread from its starting lane so 4 cars don't render on top of each other
+          var laneOffset = Util.limit((car.base || 0) * 0.35 + t.steer * 0.75, -0.9, 0.9);
+          live.targets[t.id] = { d: GRID_AHEAD + playerZ + t.position * trackLength, offset: laneOffset, speed: t.speed };
           var legend = document.querySelector('#teams .team-' + t.id);
           if (legend) legend.textContent = legend.getAttribute('data-name') + '  ' + t.boosters + ' boosting' + (t.driverConnected ? '  (driver)' : '  (no driver)');
         });
@@ -1123,7 +1155,7 @@
           if (!tgt) continue;
           car.d      += (tgt.d - car.d) * k;
           car.offset += (tgt.offset - car.offset) * k;
-          car.speed   = tgt.speed * maxSpeed / 1.5;
+          car.speed   = tgt.speed * maxSpeed / 2; // visual scroll speed only (real race progress is server-side and unaffected) - toned down a bit, felt too fast
           if (car.d > leadD) { leadD = car.d; lead = car; }
         }
         if (!lead) return;
@@ -1142,6 +1174,9 @@
           if (car.team) continue;
           place(car, car.z + car.speed * dt);
         }
+
+        checkCollisions();
+
         var startPosition = position;
         position = Util.increase(leadD - maxVis - CAMERA_BACK - playerZ, 0, trackLength);
         speed = lead.speed;
@@ -1166,13 +1201,18 @@
         var slots = [ { x: 0, y: 0 }, { x: halfW, y: 0 }, { x: 0, y: halfH }, { x: halfW, y: halfH } ];
         var savedPosition = position, savedPlayerX = playerX, savedSpeed = speed;
 
+        var now = Date.now();
+
         TEAMS.forEach(function (team, i) {
           var car = findCarByTeamId(team.id);
           var slot = slots[i];
           if (!car) return;
 
+          var hitLeft = live.hitFlash[team.id] ? (live.hitFlash[team.id] - now) : 0;
+          var hitting = hitLeft > 0;
+
           position = Util.increase(car.z - CAMERA_BACK - playerZ, 0, trackLength);
-          playerX  = 0;
+          playerX  = hitting ? (Math.random() - 0.5) * 0.25 : 0; // quick shake, cosmetic only
           speed    = car.speed;
 
           ctx.save();
@@ -1182,11 +1222,15 @@
           ctx.translate(slot.x, slot.y);
           ctx.scale(halfW / width, halfH / height);
           renderSingleView();
+          if (hitting) {
+            ctx.fillStyle = 'rgba(229, 57, 53, ' + (0.35 * hitLeft / 350) + ')';
+            ctx.fillRect(0, 0, width, height);
+          }
           ctx.restore();
 
           ctx.save();
-          ctx.strokeStyle = team.color;
-          ctx.lineWidth = 4;
+          ctx.strokeStyle = hitting ? '#fff' : team.color;
+          ctx.lineWidth = hitting ? 7 : 4;
           ctx.strokeRect(slot.x + 2, slot.y + 2, halfW - 4, halfH - 4);
           ctx.fillStyle = team.color;
           ctx.fillRect(slot.x, slot.y, 150, 36);

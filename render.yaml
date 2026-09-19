@@ -13,7 +13,7 @@ services:
       - key: PUBLIC_URL
         value: https://mgp-super-chiki-br-64.onrender.com
       # a car at speed=1 (fully boosted) finishes in this many seconds; default is 60,
-      # shortened for a tighter demo (worst case with zero boosting is still a few
-      # minutes since speed is capped much lower without an active driver/boosters)
+      # shortened to target a ~40s demo race (worst case with zero boosting is still a
+      # few minutes since speed is capped much lower without an active driver/boosters)
       - key: SECONDS_AT_SPEED_1
-        value: "30"
+        value: "40"
