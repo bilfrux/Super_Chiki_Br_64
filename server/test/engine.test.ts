@@ -310,3 +310,31 @@ test("RESET after a finished race allows a fresh race (memes can fire again)", (
   for (let i = 0; i < 3; i++) e.applyBoost("red");
   assert.equal(team(e, "red").activeEvent?.event.id, "SMALL");
 });
+
+test("metrics: running window sums stay exact across many ticks, and RESET clears them", () => {
+  const e = make();
+  racing(e);
+  let accepted = 0;
+  for (let i = 0; i < 200; i++) { // stays inside the 10 s race
+    for (let k = 0; k < (i % 7); k++) { e.applyBoost("red"); accepted++; }
+    e.tick(DT);
+    // Independent check: the rate is exactly what was accepted in the last HZ ticks.
+    let expected = 0;
+    for (let j = Math.max(0, i - HZ + 1); j <= i; j++) expected += j % 7;
+    assert.equal(team(e, "red").boostRate, expected, `tick ${i}`);
+    assert.equal(e.snapshot().metrics.boostsPerSecond, expected);
+  }
+  assert.equal(e.boostTotals().red, accepted);
+  e.reset();
+  assert.equal(e.boostTotals().red, 0);
+  assert.equal(e.snapshot().metrics.actionsPerSecond, 0);
+});
+
+test("metrics: chain counters are zero (never faked) and the shape is exactly the protocol's", () => {
+  const e = make();
+  racing(e);
+  for (let i = 0; i < 50; i++) e.applyBoost("blue");
+  const m = e.snapshot().metrics;
+  assert.deepEqual(Object.keys(m).sort(), ["actionsPerSecond", "boostsPerSecond", "eventsReceived", "transactionsConfirmed", "transactionsSent"]);
+  assert.deepEqual([m.transactionsSent, m.transactionsConfirmed, m.eventsReceived], [0, 0, 0]);
+});

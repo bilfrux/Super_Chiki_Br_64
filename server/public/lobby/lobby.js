@@ -91,16 +91,40 @@
     }
   }
 
+  // ---- metrics (GET /api/metrics): application and blockchain kept apart ------
+
+  var boostsByTeam = {};
+  function setText(id, v) { $(id).textContent = String(v); }
+  function renderMetrics(m) {
+    var a = m.application, c = m.blockchain;
+    setText("m-players", a.connectedPlayers);
+    setText("m-drivers", a.connectedDrivers);
+    setText("m-boosters", a.connectedBoosters);
+    setText("m-bps", Math.round(a.boostsPerSecond));
+    setText("m-aps", Math.round(a.actionsPerSecond));
+    setText("m-total", a.boostsTotal);
+    for (var id in a.teams) boostsByTeam[id] = a.teams[id].boostsTotal;
+    setText("c-mode", c.chainMode);
+    var off = c.chainMode === "OFF", demo = c.chainMode === "DEMO";
+    setText("c-sent", off ? "–" : c.transactionsSent);
+    setText("c-conf", off ? "–" : c.transactionsConfirmed);
+    setText("c-note", off ? "No chain configured: nothing is being sent to Monad." : demo ? "DEMO mode: simulated activity, not real Monad data." : "");
+  }
+  function pollMetrics() {
+    fetch("/api/metrics").then(function (r) { return r.json(); }).then(renderMetrics).catch(function () { /* next poll */ });
+  }
+  pollMetrics();
+  setInterval(pollMetrics, 1000);
+
   function render(s) {
     $("race-status").textContent = s.status + (s.status === "COUNTDOWN" ? "  " + Math.max(1, Math.ceil(-s.elapsed)) : "") + (s.winner ? " — WINNER: " + s.winner.toUpperCase() : "");
     var rows = "";
     s.teams.forEach(function (t) {
       rows += "<tr><td class='team'><span class='dot' style='background:" + COLORS[t.id] + "'></span>" + t.id.toUpperCase() + "</td>" +
-        "<td>" + (t.driverConnected ? "●" : "○") + "</td><td>" + t.boosters + "</td><td>" + Math.round(t.boostRate) + "</td>" +
+        "<td>" + (t.driverConnected ? "●" : "○") + "</td><td>" + t.boosters + "</td><td>" + Math.round(t.boostRate) + "</td><td>" + (boostsByTeam[t.id] || 0) + "</td>" +
         "<td><div class='bar'><i style='width:" + Math.round(t.position * 100) + "%;background:" + COLORS[t.id] + "'></i></div></td></tr>";
     });
     document.querySelector("#teams tbody").innerHTML = rows;
-    $("metrics").textContent = "boosts/s " + Math.round(s.metrics.boostsPerSecond) + " · actions/s " + Math.round(s.metrics.actionsPerSecond) + " · chain: " + s.chainMode;
   }
 
   // ---- operator --------------------------------------------------------------

@@ -21,10 +21,31 @@
   <section id="live">
     <div id="race-status">CONNECTING…</div>
     <table id="teams">
-      <thead><tr><th>TEAM</th><th>DRIVER</th><th>BOOSTERS</th><th>BOOSTS/S</th><th>PROGRESS</th></tr></thead>
+      <thead><tr><th>TEAM</th><th>DRIVER</th><th>BOOSTERS</th><th>BOOSTS/S</th><th>BOOSTS</th><th>PROGRESS</th></tr></thead>
       <tbody></tbody>
     </table>
-    <div id="metrics"></div>
+    <div id="metrics-panels">
+      <div class="panel" id="app-metrics">
+        <h3>APPLICATION METRICS <small>measured by the game server</small></h3>
+        <dl>
+          <dt>Players</dt><dd id="m-players">–</dd>
+          <dt>Drivers</dt><dd id="m-drivers">–</dd>
+          <dt>Boosters</dt><dd id="m-boosters">–</dd>
+          <dt>Boosts/s</dt><dd id="m-bps">–</dd>
+          <dt>Actions/s</dt><dd id="m-aps">–</dd>
+          <dt>Boosts this race</dt><dd id="m-total">–</dd>
+        </dl>
+      </div>
+      <div class="panel" id="chain-metrics">
+        <h3>BLOCKCHAIN METRICS <small>Monad, reported by the chain layer</small></h3>
+        <dl>
+          <dt>Chain mode</dt><dd id="c-mode">–</dd>
+          <dt>Transactions sent</dt><dd id="c-sent">–</dd>
+          <dt>Transactions confirmed</dt><dd id="c-conf">–</dd>
+        </dl>
+        <p id="c-note"></p>
+      </div>
+    </div>
   </section>
 
   <section id="admin">

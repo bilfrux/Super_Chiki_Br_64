@@ -66,6 +66,7 @@ type TeamRuntime = {
   fired: Set<string>; // memes already fired this race
   thresholds: { meme: MemeEvent; threshold: number }[]; // ascending, per team
   boostRing: number[]; // accepted boosts per tick over the last ~1 s
+  boostRingSum: number; // running sum of boostRing, so reading the rate is O(1)
   pendingBoosts: number; // accepted since last BOOST event
   steerDirty: boolean;
   lastActivityRate: number;
@@ -79,6 +80,7 @@ export class RaceEngine {
   private readonly ringLength: number;
   private ringIndex = 0;
   private actionRing: number[]; // accepted boosts + steer messages per tick
+  private actionRingSum = 0; // running sum of actionRing
   private memeEvents: GameEvent[] = [];
 
   constructor(
@@ -86,7 +88,8 @@ export class RaceEngine {
     private readonly memes: MemeConfig,
     tickHz: number,
   ) {
-    this.ringLength = Math.max(1, Math.round(tickHz));
+    // +1: the slot being written this tick is always partial, so keep tickHz full ticks (1 s) behind it.
+    this.ringLength = Math.max(1, Math.round(tickHz)) + 1;
     this.actionRing = new Array<number>(this.ringLength).fill(0);
     this.teams = TEAM_IDS.map((id) => this.newTeam(id));
   }
@@ -99,7 +102,7 @@ export class RaceEngine {
       id, boostEnergy: 0, position: 0, rawPosition: 0, speed: 0,
       driverConnected: false, boosters: 0, steer: 0,
       boostTotal: 0, fired: new Set(), thresholds,
-      boostRing: new Array<number>(this.ringLength).fill(0),
+      boostRing: new Array<number>(this.ringLength).fill(0), boostRingSum: 0,
       pendingBoosts: 0, steerDirty: false, lastActivityRate: 0,
     };
   }
@@ -121,10 +124,11 @@ export class RaceEngine {
     this.winner = undefined;
     this.memeEvents = [];
     this.actionRing.fill(0);
+    this.actionRingSum = 0;
     for (const t of this.teams) {
       t.boostEnergy = 0; t.position = 0; t.rawPosition = 0; t.speed = 0; t.steer = 0;
       t.activeEvent = undefined; t.boostTotal = 0; t.fired.clear();
-      t.boostRing.fill(0); t.pendingBoosts = 0; t.steerDirty = false; t.lastActivityRate = 0;
+      t.boostRing.fill(0); t.boostRingSum = 0; t.pendingBoosts = 0; t.steerDirty = false; t.lastActivityRate = 0;
     }
   }
 
@@ -136,7 +140,9 @@ export class RaceEngine {
     const t = this.team(team);
     t.boostEnergy = Math.min(1, t.boostEnergy + this.cfg.boostGain);
     t.boostRing[this.ringIndex]! += 1;
+    t.boostRingSum += 1;
     this.actionRing[this.ringIndex]! += 1;
+    this.actionRingSum += 1;
     t.pendingBoosts += 1;
     t.boostTotal += 1;
     this.fireMemes(t);
@@ -149,6 +155,7 @@ export class RaceEngine {
     t.steer = value;
     t.steerDirty = true;
     this.actionRing[this.ringIndex]! += 1;
+    this.actionRingSum += 1;
   }
 
   /** Connection bookkeeping, owned by the session layer. */
@@ -169,8 +176,13 @@ export class RaceEngine {
 
   tick(dt: number): void {
     this.ringIndex = (this.ringIndex + 1) % this.ringLength;
+    // Slide the window: the slot being reused leaves it.
+    this.actionRingSum -= this.actionRing[this.ringIndex]!;
     this.actionRing[this.ringIndex] = 0;
-    for (const t of this.teams) t.boostRing[this.ringIndex] = 0;
+    for (const t of this.teams) {
+      t.boostRingSum -= t.boostRing[this.ringIndex]!;
+      t.boostRing[this.ringIndex] = 0;
+    }
 
     if (this.phase === "COUNTDOWN") {
       this.elapsed += dt;
@@ -273,9 +285,11 @@ export class RaceEngine {
       elapsed: this.elapsed,
       teams,
       metrics: {
-        actionsPerSecond: this.actionRing.reduce((a, b) => a + b, 0),
+        // APPLICATION metrics, measured here over a 1 s window. Not Monad TPS.
+        actionsPerSecond: this.actionRingSum,
         boostsPerSecond,
-        transactionsSent: 0, // no chain yet
+        // BLOCKCHAIN metrics: only ever fed by the chain layer. Zero until one exists.
+        transactionsSent: 0,
         transactionsConfirmed: 0,
         eventsReceived: 0,
       },
@@ -319,7 +333,14 @@ export class RaceEngine {
   }
 
   private boostRate(t: TeamRuntime): number {
-    return t.boostRing.reduce((a, b) => a + b, 0);
+    return t.boostRingSum;
+  }
+
+  /** Accepted boosts per team this race (application metric; cleared by RESET). */
+  boostTotals(): Record<TeamId, number> {
+    const out = {} as Record<TeamId, number>;
+    for (const t of this.teams) out[t.id] = t.boostTotal;
+    return out;
   }
 
   private team(id: TeamId): TeamRuntime {

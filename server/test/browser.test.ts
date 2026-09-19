@@ -322,7 +322,7 @@ test("Lobby page in a real browser: shows the QR + join URL, live team table, an
     const { cdp } = browser;
     const booster = new SimClient(`ws://127.0.0.1:${server.port}/ws`);
     try {
-      await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1000, deviceScaleFactor: 1, mobile: false });
+      await cdp.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1500, deviceScaleFactor: 1, mobile: false });
       await cdp.send("Page.navigate", { url: `http://127.0.0.1:${server.port}/lobby/` });
 
       // QR + the URL it encodes (the server's LAN address, never loopback unless there is no network)

@@ -76,3 +76,22 @@ race tuning: `COUNTDOWN_SECONDS` `SECONDS_AT_SPEED_1` `BASE_SPEED` `BOOST_SPEED`
 - `public/lobby/` — the lobby/operator page.
 - `tools/` — `simclient.ts` (scriptable protocol client), `scenario.ts`, `demo.ts`, `sim.ts`.
 - `test/` — `engine`, `limiter`, `server` (real WebSockets, rows tagged with TEST_MATRIX numbers), `http`, and `browser` (headless Chrome/Edge drives the real pages; skipped if none is installed, set `BROWSER_PATH` to point at one; `SCREENSHOT_DIR=dir` saves PNGs).
+
+## Metrics: application vs blockchain
+
+Two groups, never mixed. Nothing is called "Monad TPS".
+
+**Application metrics** (measured by this server, always real):
+
+| Where | Field | Meaning |
+|---|---|---|
+| `RACE_STATE.metrics` | `boostsPerSecond` | accepted boosts, all teams, 1 s sliding window |
+| | `actionsPerSecond` | accepted boosts + `DRIVER_STEER` messages, same window |
+| `RACE_STATE.teams[i]` | `boostRate`, `boosters`, `driverConnected` | per team |
+| `GET /api/metrics` → `application` | `connectedPlayers/Drivers/Boosters/Screens`, per-team `boostsTotal`, `boostsPerSecond`, `boosters` | lobby only; race totals reset on `RESET` |
+
+Only accepted boosts count (`RACING`/`FINAL_LAP`/`CHAOS`); rate-limited or ignored ones do not. Reading a rate is O(1) (running sums over a tick ring), so a burst of thousands of BOOSTs costs one addition each.
+
+**Blockchain metrics** (reported by the chain layer only): `RACE_STATE.metrics.transactionsSent`, `transactionsConfirmed`, `eventsReceived`, plus `chainMode`. With no chain layer they are `0` and `chainMode` is `"OFF"`; the lobby shows `–` and "No chain configured". In `DEMO` mode the lobby labels them simulated.
+
+**How the game consumes them:** it needs nothing beyond `RACE_STATE`. Show `metrics.boostsPerSecond` as "crowd power" (or use `teams[i].boostRate` per car), and show `transactionsSent/Confirmed` only when `chainMode === "LIVE"`. `/api/metrics` is for the lobby page; the game should not poll it.

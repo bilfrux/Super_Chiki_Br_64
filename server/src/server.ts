@@ -34,6 +34,7 @@ import {
 import type { ServerConfig } from "./config.js";
 import { RaceEngine } from "./engine.js";
 import { createRequestHandler } from "./http.js";
+import { buildLobbyMetrics } from "./metrics.js";
 import { Limiter } from "./rateLimit.js";
 
 /** Skip sending to a client whose socket buffer is this backed up (slow phone). */
@@ -107,6 +108,8 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
     createRequestHandler({
       config,
       getPort: () => listeningPort,
+      metrics: () =>
+        buildLobbyMetrics(engine.snapshot(), [...live].map((c) => c.player!.role), engine.boostTotals()),
       health: () => {
         const roles: Record<string, number> = { screen: 0, admin: 0, driver: 0, booster: 0 };
         for (const c of live) roles[c.player!.role] = (roles[c.player!.role] ?? 0) + 1;

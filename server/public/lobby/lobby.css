@@ -33,7 +33,14 @@ td.team { font-weight: 800; text-align: left; }
 .bar { height: 0.8rem; min-width: 8rem; border-radius: 0.4rem; background: #2a2a33; overflow: hidden; }
 .bar > i { display: block; height: 100%; }
 #race-status { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.06em; margin-top: 1rem; }
-#metrics { opacity: 0.75; font-size: 0.9rem; }
+#metrics-panels { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
+.panel { border: 1px solid #333; border-radius: 0.6rem; padding: 0.6rem 1rem; min-width: 15rem; text-align: left; }
+.panel h3 { margin: 0 0 0.4rem; font-size: 0.85rem; letter-spacing: 0.06em; }
+.panel h3 small { display: block; font-weight: 400; opacity: 0.6; }
+.panel dl { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 1rem; margin: 0; }
+.panel dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+#chain-metrics { border-style: dashed; }
+#c-note { margin: 0.4rem 0 0; font-size: 0.8rem; opacity: 0.7; }
 
 #admin-form { display: flex; gap: 0.4rem; justify-content: center; }
 input, button {

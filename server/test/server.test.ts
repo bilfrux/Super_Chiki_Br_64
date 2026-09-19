@@ -748,3 +748,53 @@ test("server never sends server-only fields back as client-controlled: state com
     assert.equal(b.welcome?.team, "red");
   });
 });
+
+test("BOOST storm: many simultaneous boosters move the race at once; app metrics are exact, chain metrics stay zero", async () => {
+  await withServer({ race: { countdownSeconds: 0.05, secondsAtSpeed1: 600 } }, async (ctx) => {
+    const admin = await ctx.admin();
+    const screen = await ctx.screen();
+    const drivers = await Promise.all(TEAM_IDS.map((team) => ctx.client({ role: "driver", team })));
+    const boosters: SimClient[] = [];
+    for (let i = 0; i < 100; i++) boosters.push(await ctx.client({ role: "booster", team: TEAM_IDS[i % 4] }));
+    await ctx.start(admin, screen);
+
+    const PER_BOOSTER = 20;
+    const t0 = performance.now();
+    for (let n = 0; n < PER_BOOSTER; n++) for (const b of boosters) b.send({ type: "BOOST" });
+    const total = boosters.length * PER_BOOSTER; // 2000, all in one burst
+
+    const s = await screen.waitForState((st) => st.metrics.boostsPerSecond >= total * 0.9, { timeoutMs: 5000 });
+    const applyMs = performance.now() - t0;
+    assert.ok(applyMs < 3000, `2000 boosts applied and visible in ${applyMs.toFixed(0)} ms`);
+    assert.equal(s.metrics.boostsPerSecond, s.teams.reduce((n, t) => n + t.boostRate, 0), "total = sum of teams");
+    assert.ok(s.metrics.actionsPerSecond >= s.metrics.boostsPerSecond);
+    for (const t of s.teams) assert.equal(t.boosters, 25);
+    assert.deepEqual([s.metrics.transactionsSent, s.metrics.transactionsConfirmed, s.metrics.eventsReceived, s.chainMode], [0, 0, 0, "OFF"]);
+
+    // Boost energy and speed reacted immediately (no chain in the loop).
+    assert.ok(s.teams.every((t) => t.boostEnergy > 0));
+
+    // Lobby endpoint: exact per-team totals, application vs blockchain separated.
+    const m = await (await fetch(`http://127.0.0.1:${ctx.server.port}/api/metrics`)).json() as {
+      application: { connectedPlayers: number; connectedDrivers: number; connectedBoosters: number; connectedScreens: number; boostsTotal: number; teams: Record<string, { boostsTotal: number; boosters: number }> };
+      blockchain: { chainMode: string; transactionsSent: number; transactionsConfirmed: number };
+    };
+    assert.deepEqual(
+      [m.application.connectedPlayers, m.application.connectedDrivers, m.application.connectedBoosters, m.application.connectedScreens],
+      [104, 4, 100, 1],
+    );
+    assert.equal(m.application.boostsTotal, total, "every accepted boost counted once");
+    for (const id of TEAM_IDS) {
+      assert.equal(m.application.teams[id]!.boostsTotal, total / 4);
+      assert.equal(m.application.teams[id]!.boosters, 25);
+    }
+    assert.deepEqual(m.blockchain, { chainMode: "OFF", transactionsSent: 0, transactionsConfirmed: 0, eventsReceived: 0 });
+    void drivers;
+
+    // After RESET the race-scoped counters are zero again.
+    admin.send({ type: "CONTROL", action: "RESET" });
+    await screen.waitForState((st) => st.status === "LOBBY");
+    const after = await (await fetch(`http://127.0.0.1:${ctx.server.port}/api/metrics`)).json() as { application: { boostsTotal: number } };
+    assert.equal(after.application.boostsTotal, 0);
+  });
+});

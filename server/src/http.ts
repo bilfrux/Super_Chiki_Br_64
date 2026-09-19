@@ -5,6 +5,7 @@
 //   /api/join    JSON: the URL(s) phones should open   (drives the QR code)
 //   /qr.svg      the QR code for that URL, as SVG
 //   /health      JSON status
+//   /api/metrics JSON: application vs blockchain metrics for the lobby
 //   /            redirects to /booster/ (typing the bare address makes you a booster)
 //   /ws          WebSocket upgrade (handled by the ws library, not here)
 
@@ -22,6 +23,7 @@ export type HttpDeps = {
   /** The actual listening port (known only after listen(); matters when PORT=0). */
   getPort(): number;
   health(): unknown;
+  metrics(): unknown;
 };
 
 const json = (res: ServerResponse, status: number, body: unknown): void => {
@@ -45,6 +47,7 @@ export function createRequestHandler(deps: HttpDeps): RequestListener {
 
     try {
       if (req.method === "GET" && path === "/health") return json(res, 200, deps.health());
+      if (req.method === "GET" && path === "/api/metrics") return json(res, 200, deps.metrics());
 
       if (req.method === "GET" && path === "/api/join") {
         return json(res, 200, { ...currentJoin(), port: deps.getPort(), lobbyPath: LOBBY_PATH, boosterPath: BOOSTER_PATH });
