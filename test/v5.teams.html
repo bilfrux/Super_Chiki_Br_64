@@ -1280,9 +1280,38 @@
         speed    = savedSpeed;
       };
 
+      // Stops the current race and sends everyone (this screen, drivers, boosters) back to the
+      // lobby - same admin-key flow as the lobby's "LANCER LA PARTIE" (PROTOCOL.md CONTROL).
+      // From there, "LANCER LA PARTIE" starts a fresh race.
+      function bindResetButton() {
+        var resetBtn = el('button', 'position:fixed;left:14px;top:10px;z-index:6;font:700 0.75em Verdana,sans-serif;color:#fff;background:rgba(160,30,30,0.75);border:1px solid rgba(255,255,255,0.4);padding:5px 10px;border-radius:6px;cursor:pointer');
+        resetBtn.textContent = '⏹ STOP / RESET';
+        resetBtn.addEventListener('click', function () {
+          var key = localStorage.getItem('mgp.admin.key') || window.prompt('Operator key to stop the race:');
+          if (!key) return;
+          resetBtn.disabled = true;
+          var admin = MgpClient.connect({
+            role: 'admin',
+            adminKey: key,
+            onStatus: function (s, detail) {
+              if (s === 'online') {
+                localStorage.setItem('mgp.admin.key', key);
+                admin.send({ type: 'CONTROL', action: 'RESET' });
+                // RACE_STATE going back to LOBBY redirects everyone via applyState() below
+              } else if (s === 'error') {
+                localStorage.removeItem('mgp.admin.key');
+                resetBtn.disabled = false;
+                window.alert('Could not stop the race: ' + (detail.message || detail.code || 'unknown error'));
+              }
+            }
+          });
+        });
+      }
+
       // ---- connection ----
       function connect() {
         netPill = el('div', 'position:fixed;right:14px;top:10px;z-index:6;font:700 0.8em Verdana,sans-serif;color:#fff;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:6px;pointer-events:none');
+        bindResetButton();
         TEAMS.forEach(function (t) { var e = document.querySelector('#teams .team-' + t.id); if (e) e.setAttribute('data-name', e.textContent.trim()); });
         live.net = MgpClient.connect({
           role: 'screen',
