@@ -115,7 +115,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Conf
       finalLapPosition: num(env, "FINAL_LAP_POSITION", r.finalLapPosition, { min: 0 }),
     },
     chain: {
-      demo: env.DEMO_MODE === "true",
+      demo: /^(true|1)$/i.test(env.DEMO_MODE ?? ""),
       privateKey: env.RELAYER_PRIVATE_KEY || undefined,
       contractAddress: env.BOOST_LEDGER_ADDRESS || undefined,
       chainId: num(env, "CHAIN_ID", MONAD_TESTNET_CHAIN_ID, { min: 1, int: true }),
@@ -129,6 +129,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Conf
         maxInFlight: num(env, "CHAIN_MAX_IN_FLIGHT", DEFAULT_QUEUE_OPTIONS.maxInFlight, { min: 1, int: true }),
         backoffMinMs: DEFAULT_QUEUE_OPTIONS.backoffMinMs,
         backoffMaxMs: DEFAULT_QUEUE_OPTIONS.backoffMaxMs,
+        unavailableAfterMs: num(env, "CHAIN_UNAVAILABLE_AFTER_MS", DEFAULT_QUEUE_OPTIONS.unavailableAfterMs, { min: 0 }),
+        probeMs: num(env, "CHAIN_PROBE_MS", DEFAULT_QUEUE_OPTIONS.probeMs, { min: 50 }),
       },
     },
     memes: scale === 1

@@ -788,7 +788,7 @@ test("BOOST storm: many simultaneous boosters move the race at once; app metrics
       assert.equal(m.application.teams[id]!.boostsTotal, total / 4);
       assert.equal(m.application.teams[id]!.boosters, 25);
     }
-    assert.deepEqual(m.blockchain, { chainMode: "OFF", transactionsSent: 0, transactionsConfirmed: 0, eventsReceived: 0, transactionsFailed: 0, transactionsUnconfirmed: 0, pendingTransactions: 0, unsentBoosts: 0, rpcHealthy: true });
+    assert.deepEqual(m.blockchain, { chainMode: "OFF", chainState: "OFF", transactionsSent: 0, transactionsConfirmed: 0, eventsReceived: 0, transactionsFailed: 0, transactionsUnconfirmed: 0, pendingTransactions: 0, unsentBoosts: 0, rpcHealthy: true });
     void drivers;
 
     // After RESET the race-scoped counters are zero again.

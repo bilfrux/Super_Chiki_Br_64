@@ -130,6 +130,8 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
   );
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws", maxPayload: HARD_MAX_PAYLOAD });
+  wss.on("error", (err) => log(`! websocket server error: ${err.message}`));
+  httpServer.on("clientError", (_err, socket) => { if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); });
 
   // --- sending ---------------------------------------------------------------
 
@@ -242,7 +244,10 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
     helloTimer.unref();
 
     ws.on("pong", () => { conn.alive = true; });
-    ws.on("message", (data, isBinary) => onMessage(conn, data, isBinary));
+    ws.on("message", (data, isBinary) => {
+      // A bug or a hostile frame must cost one message, never the process.
+      try { onMessage(conn, data, isBinary); } catch (err) { log(`! error handling a message from conn ${conn.id}: ${(err as Error)?.message}`); }
+    });
     ws.on("error", () => { /* the close event follows; nothing to do */ });
     ws.on("close", () => {
       clearTimeout(helloTimer);
@@ -416,10 +421,12 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
     const now = performance.now();
     const dt = Math.min((now - lastTick) / 1000, 0.25); // never simulate a huge gap in one step
     lastTick = now;
-    engine.tick(dt);
+    try { engine.tick(dt); } catch (err) { log(`! tick error: ${(err as Error)?.message}`); }
   }, 1000 / config.tickHz);
 
-  const stateTimer = setInterval(flushAndBroadcast, 1000 / config.stateHz);
+  const stateTimer = setInterval(() => {
+    try { flushAndBroadcast(); } catch (err) { log(`! broadcast error: ${(err as Error)?.message}`); }
+  }, 1000 / config.stateHz);
 
   // Heartbeat: a socket that did not answer the previous ping is dead.
   const heartbeatTimer = setInterval(() => {

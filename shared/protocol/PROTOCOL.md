@@ -134,7 +134,7 @@ type MemeEvent = {
 | `elapsed` | Seconds. **Negative during `COUNTDOWN`** (`-3.0` counting up to `0`, so `Math.ceil(-elapsed)` gives the 3-2-1). `0` at the start of `RACING`, then counts up. Frozen at its final value when `FINISHED`. `0` in `LOBBY`. |
 | `winner` | Team that first reached `position = 1`. Only set in `FINISHED`. |
 | `metrics.*` | Application metrics measured by the server (SPEC §15). They are **not** Monad network TPS. Counters are for the current race and reset on `RESET`. `eventsReceived` counts events the server received back from the chain layer. |
-| `chainMode` | `LIVE` = real Monad Testnet. `DEMO` = `DEMO_MODE` fallback with simulated activity. `OFF` = no chain configured. In `DEMO` the game must not present chain metrics as real blockchain data. |
+| `chainMode` | `LIVE` = real Monad Testnet. `DEMO` = `DEMO_MODE` fallback with simulated activity. `OFF` = no chain data available: not configured, misconfigured, not yet verified, **or the real chain's RPC has been unreachable for more than ~10 s** (it returns to `LIVE` when the RPC answers again; counters keep their last real values). Games must show chain metrics only when `LIVE` (or, clearly labelled as simulated, `DEMO`). In `DEMO` the game must not present chain metrics as real blockchain data. |
 
 ### 4.2 Status transitions (server-only)
 

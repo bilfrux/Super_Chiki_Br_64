@@ -104,14 +104,16 @@
     setText("m-aps", Math.round(a.actionsPerSecond));
     setText("m-total", a.boostsTotal);
     for (var id in a.teams) boostsByTeam[id] = a.teams[id].boostsTotal;
-    setText("c-mode", c.chainMode);
-    var off = c.chainMode === "OFF", demo = c.chainMode === "DEMO";
-    setText("c-sent", off ? "–" : c.transactionsSent);
-    setText("c-conf", off ? "–" : c.transactionsConfirmed);
+    setText("c-mode", c.chainState);
+    var off = c.chainState === "OFF" || c.chainState === "UNAVAILABLE", demo = c.chainState === "DEMO";
+    var down = c.chainState === "UNAVAILABLE";
+    // Counters are shown only when they are real (LIVE) or clearly simulated (DEMO).
+    setText("c-sent", off ? "–" : c.transactionsSent + (demo ? " (simulated)" : ""));
+    setText("c-conf", off ? "–" : c.transactionsConfirmed + (demo ? " (simulated)" : ""));
     setText("c-pend", off ? "–" : c.pendingTransactions);
-    setText("c-wait", off ? "–" : c.unsentBoosts);
-    setText("c-rpc", off ? "–" : c.rpcHealthy ? "OK" : "DELAYED");
-    setText("c-note", !off && !c.rpcHealthy ? "RPC unreachable or slow. The race is unaffected; boosts are queued and sent when it recovers." : off ? "No chain configured: nothing is being sent to Monad." : demo ? "DEMO mode: simulated activity, not real Monad data." : "");
+    setText("c-wait", off && !down ? "–" : c.unsentBoosts);
+    setText("c-rpc", down ? "UNAVAILABLE" : off ? "–" : c.rpcHealthy ? "OK" : "DELAYED");
+    setText("c-note", down ? "Monad RPC unreachable. The race is unaffected; boosts are queued and sent when it recovers. Blockchain numbers are hidden until then." : c.chainState === "OFF" ? "No chain configured (or misconfigured): nothing is being sent to Monad." : demo ? "DEMO mode: simulated activity, not real Monad data." : !c.rpcHealthy ? "RPC slow or failing. The race is unaffected; boosts are queued and retried." : "");
   }
   function pollMetrics() {
     fetch("/api/metrics").then(function (r) { return r.json(); }).then(renderMetrics).catch(function () { /* next poll */ });

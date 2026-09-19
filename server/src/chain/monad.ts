@@ -133,6 +133,10 @@ export class MonadAdapter implements ChainAdapter {
     }
   }
 
+  async ping(): Promise<void> {
+    await this.client.getBlockNumber();
+  }
+
   async check(hash: string): Promise<TxCheck> {
     let receipt;
     try {

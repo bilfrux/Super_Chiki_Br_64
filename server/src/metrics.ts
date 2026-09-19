@@ -21,7 +21,8 @@ export type LobbyMetrics = {
     boostsTotal: number; // accepted this race
   };
   blockchain: {
-    chainMode: RaceState["chainMode"];
+    chainMode: RaceState["chainMode"]; // what RACE_STATE says
+    chainState: "LIVE" | "DEMO" | "UNAVAILABLE" | "OFF"; // precise: UNAVAILABLE = configured but the RPC is down
     transactionsSent: number;
     transactionsConfirmed: number;
     eventsReceived: number;
@@ -62,6 +63,7 @@ export function buildLobbyMetrics(
     },
     blockchain: {
       chainMode: state.chainMode,
+      chainState: chain?.chainState ?? state.chainMode,
       transactionsSent: state.metrics.transactionsSent,
       transactionsConfirmed: state.metrics.transactionsConfirmed,
       eventsReceived: state.metrics.eventsReceived,

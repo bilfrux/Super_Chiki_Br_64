@@ -18,10 +18,21 @@ if (join.source === "LOCALHOST") {
 console.log(`  WebSocket:                                ws://localhost:${server.port}/ws`);
 console.log(`  Health:                                   http://localhost:${server.port}/health`);
 console.log(
+  config.chain.demo
+    ? `  Chain: DEMO_MODE (simulated transactions, labelled chainMode "DEMO"; not real Monad data)`
+    : config.chain.privateKey && config.chain.contractAddress
+      ? `  Chain: LIVE Monad Testnet (chain id ${config.chain.chainId}); the race never waits for it`
+      : `  Chain: OFF (set DEMO_MODE=true, or RELAYER_PRIVATE_KEY + BOOST_LEDGER_ADDRESS)`,
+);
+console.log(
   config.adminKey
     ? `  Admin role: enabled (ADMIN_KEY set)`
     : `  Admin role: DISABLED. Set ADMIN_KEY to be able to START / RESET a race.`,
 );
+
+// Last line of defence for the live demo: a stray error is logged, the race keeps running.
+process.on("uncaughtException", (err) => console.error("! uncaught exception (continuing):", err));
+process.on("unhandledRejection", (err) => console.error("! unhandled rejection (continuing):", err));
 
 const shutdown = async () => {
   console.log("Shutting down...");

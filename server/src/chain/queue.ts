@@ -18,6 +18,10 @@ export type QueueOptions = {
   maxInFlight: number; // stop submitting while this many txs are unconfirmed
   backoffMinMs: number;
   backoffMaxMs: number;
+  /** Real chain unreachable for this long → chainMode reports "OFF" (short blips do not flap it). */
+  unavailableAfterMs: number;
+  /** While idle, probe the RPC this often so an outage is noticed even with no boosts. */
+  probeMs: number;
 };
 
 export const DEFAULT_QUEUE_OPTIONS: QueueOptions = {
@@ -27,6 +31,8 @@ export const DEFAULT_QUEUE_OPTIONS: QueueOptions = {
   maxInFlight: 8,
   backoffMinMs: 1000,
   backoffMaxMs: 15_000,
+  unavailableAfterMs: 10_000,
+  probeMs: 5000,
 };
 
 type InFlight = { hash: string; gen: number; at: number };
@@ -39,6 +45,7 @@ export const errText = (err: unknown): string =>
 
 export class ChainQueue {
   private unsent = emptyBatch();
+  private sending = emptyBatch(); // the batch currently being submitted: still "waiting to send" until the RPC accepts it
   private inFlight: InFlight[] = [];
   private gen = 0; // bumped by reset(): results of older races no longer count
   private sent = 0;
@@ -48,6 +55,8 @@ export class ChainQueue {
   private unconfirmed = 0;
   private rpcHealthy = true;
   private lastError?: string;
+  private unhealthySince = 0; // 0 = healthy
+  private lastOk = 0;
   private failures = 0;
   private retryAt = 0;
   private submitting = false;
@@ -67,8 +76,9 @@ export class ChainQueue {
    * chain (mode OFF); a merely unreachable RPC does not (init is retried on the next flush).
    */
   async start(): Promise<void> {
-    const flush = setInterval(() => void this.flush(), this.opts.flushMs);
-    const poll = setInterval(() => void this.poll(), this.opts.pollMs);
+    // Timer callbacks must never throw or reject: nothing here may take the server down.
+    const flush = setInterval(() => void this.flush().catch(() => {}), this.opts.flushMs);
+    const poll = setInterval(() => void this.poll().catch(() => {}), this.opts.pollMs);
     flush.unref(); poll.unref();
     this.timers = [flush, poll];
     await this.ensureInit().catch(() => {}); // failure is recorded in status(); the flush timer retries
@@ -107,19 +117,24 @@ export class ChainQueue {
   reset(): void {
     this.gen += 1;
     this.unsent = emptyBatch();
+    this.sending = emptyBatch();
     this.sent = this.confirmed = this.events = this.failed = this.unconfirmed = 0;
   }
 
   status(): ChainStatus {
+    // A real chain is "LIVE" only once verified and while its RPC answers; never before, never during a long outage.
+    const unavailable = this.adapter.mode === "LIVE" && (!this.initialised || (this.unhealthySince > 0 && this.now() - this.unhealthySince >= this.opts.unavailableAfterMs));
+    const chainState = this.disabled ? "OFF" : unavailable ? "UNAVAILABLE" : this.adapter.mode;
     return {
-      chainMode: this.disabled ? "OFF" : this.adapter.mode,
+      chainMode: chainState === "UNAVAILABLE" ? "OFF" : chainState,
+      chainState,
       transactionsSent: this.sent,
       transactionsConfirmed: this.confirmed,
       eventsReceived: this.events,
       transactionsFailed: this.failed,
       transactionsUnconfirmed: this.unconfirmed,
       pendingTransactions: this.inFlight.filter((t) => t.gen === this.gen).length,
-      unsentBoosts: TEAM_IDS.reduce((n, t) => n + this.unsent[t], 0),
+      unsentBoosts: TEAM_IDS.reduce((n, t) => n + this.unsent[t] + this.sending[t], 0),
       rpcHealthy: this.rpcHealthy,
       ...(this.lastError ? { lastError: this.lastError } : {}),
     };
@@ -130,8 +145,9 @@ export class ChainQueue {
     if (this.submitting || this.disabled) return;
     if (this.now() < this.retryAt || this.inFlight.length >= this.opts.maxInFlight) return;
     const batch = this.unsent;
-    if (TEAM_IDS.every((t) => batch[t] === 0)) return;
+    if (TEAM_IDS.every((t) => batch[t] === 0)) return this.probe();
     this.unsent = emptyBatch();
+    this.sending = batch;
     const gen = this.gen;
     this.submitting = true;
     try {
@@ -145,6 +161,22 @@ export class ChainQueue {
       if (gen === this.gen && !this.disabled) for (const t of TEAM_IDS) this.unsent[t] += batch[t]; // keep them for the retry
       this.failures += 1;
       this.retryAt = this.now() + Math.min(this.opts.backoffMinMs * 2 ** (this.failures - 1), this.opts.backoffMaxMs);
+      if (!this.disabled) this.markUnhealthy(err);
+    } finally {
+      this.sending = emptyBatch();
+      this.submitting = false;
+    }
+  }
+
+  /** Idle: keep an eye on the RPC so "unavailable" is reported even when nobody is boosting. */
+  private async probe(): Promise<void> {
+    if (this.now() - this.lastOk < this.opts.probeMs) return;
+    this.submitting = true;
+    try {
+      await this.ensureInit();
+      await this.adapter.ping();
+      this.markHealthy();
+    } catch (err) {
       if (!this.disabled) this.markUnhealthy(err);
     } finally {
       this.submitting = false;
@@ -196,12 +228,15 @@ export class ChainQueue {
   private markHealthy(): void {
     if (!this.rpcHealthy) this.log("chain: RPC reachable again");
     this.rpcHealthy = true;
+    this.unhealthySince = 0;
+    this.lastOk = this.now();
     this.lastError = undefined;
   }
 
   private markUnhealthy(err: unknown): void {
     const text = errText(err);
     if (this.rpcHealthy || text !== this.lastError) this.log(`! chain: ${text} (game unaffected; retrying)`);
+    if (this.rpcHealthy || !this.unhealthySince) this.unhealthySince = this.now();
     this.rpcHealthy = false;
     this.lastError = text;
   }

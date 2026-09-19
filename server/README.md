@@ -109,3 +109,20 @@ Code: `src/chain/`. Contract: `../contracts`. Decisions and sources: `../MONAD_R
 | real | `RELAYER_PRIVATE_KEY` + `BOOST_LEDGER_ADDRESS` | `LIVE` |
 
 `npm run chain:check` verifies the configuration against the real RPC (chain id, finalized block, relayer balance, contract code) and sends nothing.
+
+## Reliability and fallback (demo day)
+
+- **Handlers cannot kill the server:** each incoming message, the simulation tick and the broadcast are wrapped; `index.ts` also logs (and survives) stray exceptions and rejections. A frame over 64 KiB or a flood costs only its sender the connection.
+- **Driver leaves:** `driverConnected=false`, that car's speed is capped at `safeSpeed` in the same tick (boosts cannot lift it), the other cars are untouched, the seat is free for the same token or a new driver. **Booster leaves:** the team's `boosters` count drops, everything else carries on.
+- **Refresh / reconnect / duplicates:** the token resumes the same identity; the newest socket wins and the old one is closed, so counts are never doubled.
+- **Server restart:** state is in memory, so a restart is a clean lobby. Phones reconnect with their old token plus saved team and land on the same team/seat.
+- **How the chain state shows up** (`RACE_STATE.chainMode`, details in the lobby's `/api/metrics` → `blockchain.chainState`):
+
+| Situation | `chainMode` in RACE_STATE | lobby `chainState` |
+|---|---|---|
+| `DEMO_MODE=true` (or `1`) | `DEMO` (simulated) | `DEMO` |
+| real chain verified and RPC answering | `LIVE` | `LIVE` |
+| real chain configured, RPC unreachable > `CHAIN_UNAVAILABLE_AFTER_MS` (10 s), or not verified yet | `OFF` | `UNAVAILABLE` |
+| nothing configured / wrong chain id / no contract | `OFF` | `OFF` |
+
+The game must show chain numbers only for `LIVE`, or labelled as simulated for `DEMO`. Nothing is ever generated to fill in for a dead RPC: while it is down the counters stop, boosts queue up (`unsentBoosts`) and are recorded when it returns. `CHAIN_PROBE_MS` (5 s) pings an idle RPC so an outage is noticed even with nobody boosting.

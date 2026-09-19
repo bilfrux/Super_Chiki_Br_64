@@ -22,6 +22,8 @@ class FakeAdapter implements ChainAdapter {
   batches: BoostBatch[] = [];
   initError?: Error;
   async init() { if (this.initError) throw this.initError; }
+  pingFails = false;
+  async ping() { if (this.pingFails) throw new Error("RPC down"); }
   async submit(b: BoostBatch) {
     if (this.submitFails) throw new Error("RPC down");
     this.batches.push({ ...b });
@@ -155,7 +157,7 @@ test("queue: a permanent misconfiguration turns the chain OFF (game unaffected);
   const q2 = new ChainQueue(down, OPTS, () => {});
   await q2.start();
   q2.stop();
-  assert.deepEqual([q2.status().chainMode, q2.status().rpcHealthy], ["LIVE", false]);
+  assert.deepEqual([q2.status().chainMode, q2.status().chainState, q2.status().rpcHealthy], ["OFF", "UNAVAILABLE", false], "unreachable at start: reported OFF in RACE_STATE, but not disabled for good");
   down.initError = undefined;
   q2.record("red", 1);
   await q2.flush(); // init is retried lazily, then the batch goes out

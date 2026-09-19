@@ -12,6 +12,7 @@ export class DemoAdapter implements ChainAdapter {
   constructor(private readonly latencyMs = 700, private readonly now: () => number = Date.now) {}
 
   async init(): Promise<void> {}
+  async ping(): Promise<void> {}
 
   async submit(batch: BoostBatch): Promise<string> {
     const hash = `0xdemo${(++this.n).toString(16).padStart(60, "0")}`;
