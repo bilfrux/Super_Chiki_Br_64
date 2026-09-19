@@ -136,6 +136,26 @@
     .team-green  { background: var(--p3); }
     .team-yellow { background: var(--p4); color: #2a2a08; text-shadow: none; }
 
+    .composition { display: flex; align-items: center; gap: 8px; font-size: 0.9em; }
+    .driver-icon { opacity: 0.25; filter: grayscale(1); transition: opacity 0.2s, filter 0.2s; }
+    .driver-icon.active { opacity: 1; filter: none; }
+
+    #start-race-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.7em, 2vw, 1em);
+      letter-spacing: 0.05em;
+      color: #1a0630;
+      background: var(--p4);
+      border: 4px solid #1a0630;
+      border-radius: 14px;
+      padding: 16px 34px;
+      margin-top: 6px;
+      cursor: pointer;
+      box-shadow: 0 6px 0 #8f6400, 0 10px 22px rgba(0,0,0,0.5);
+    }
+    #start-race-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #8f6400; }
+    #start-race-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .stars span {
       position: absolute; z-index: 3; pointer-events: none;
       color: #ffe98a; font-size: 1.4em;
@@ -179,11 +199,25 @@
     <p class="hint">📱 Choose your team on your phone</p>
 
     <div class="team-counts">
-      <div class="team-count team-red">   <span>🔴 RED</span>    <span id="count-red">0</span></div>
-      <div class="team-count team-blue">  <span>🔵 BLUE</span>   <span id="count-blue">0</span></div>
-      <div class="team-count team-green"> <span>🟢 GREEN</span>  <span id="count-green">0</span></div>
-      <div class="team-count team-yellow"><span>🟡 YELLOW</span> <span id="count-yellow">0</span></div>
+      <div class="team-count team-red">
+        <span>🔴 RED</span>
+        <span class="composition"><span class="driver-icon" id="driver-red">🎮</span>🙋<span id="count-red">0</span></span>
+      </div>
+      <div class="team-count team-blue">
+        <span>🔵 BLUE</span>
+        <span class="composition"><span class="driver-icon" id="driver-blue">🎮</span>🙋<span id="count-blue">0</span></span>
+      </div>
+      <div class="team-count team-green">
+        <span>🟢 GREEN</span>
+        <span class="composition"><span class="driver-icon" id="driver-green">🎮</span>🙋<span id="count-green">0</span></span>
+      </div>
+      <div class="team-count team-yellow">
+        <span>🟡 YELLOW</span>
+        <span class="composition"><span class="driver-icon" id="driver-yellow">🎮</span>🙋<span id="count-yellow">0</span></span>
+      </div>
     </div>
+
+    <button id="start-race-btn">🏁 LANCER LA PARTIE</button>
   </div>
 
   <script src="/shared/protocol/events.js"></script>
@@ -230,11 +264,43 @@
       role: 'screen',
       onState: function (state) {
         (state.teams || []).forEach(function (team) {
-          var el = document.getElementById('count-' + team.id);
-          if (el) el.textContent = team.boosters;
+          var countEl  = document.getElementById('count-' + team.id);
+          var driverEl = document.getElementById('driver-' + team.id);
+          if (countEl)  countEl.textContent = team.boosters;
+          if (driverEl) driverEl.classList.toggle('active', !!team.driverConnected);
         });
         if (state.status !== 'LOBBY') window.location.href = MgpClient.link('/test/v5.teams.html?live=1');
       }
+    });
+
+    // Starts the race (admin-only, PROTOCOL.md CONTROL). Asks for the operator's
+    // ADMIN_KEY once and remembers it locally on this device only.
+    document.getElementById('start-race-btn').addEventListener('click', function () {
+      var btn = this;
+      var key = localStorage.getItem('mgp.admin.key')
+        || new URLSearchParams(location.search).get('key')
+        || window.prompt('Operator key to start the race:');
+      if (!key) return;
+
+      btn.disabled = true;
+      btn.textContent = 'STARTING…';
+
+      var admin = MgpClient.connect({
+        role: 'admin',
+        adminKey: key,
+        onStatus: function (s, detail) {
+          if (s === 'online') {
+            localStorage.setItem('mgp.admin.key', key);
+            admin.send({ type: 'CONTROL', action: 'START' });
+            // the onState handler above redirects everyone (incl. this screen) once status leaves LOBBY
+          } else if (s === 'error') {
+            localStorage.removeItem('mgp.admin.key');
+            btn.disabled = false;
+            btn.textContent = '🏁 LANCER LA PARTIE';
+            window.alert('Could not start the race: ' + (detail.message || detail.code || 'unknown error'));
+          }
+        }
+      });
     });
   </script>
 
