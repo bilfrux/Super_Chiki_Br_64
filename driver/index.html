@@ -85,6 +85,8 @@
       0%, 100% { transform: rotate(0deg); }
       50% { transform: rotate(-90deg); }
     }
+
+    #axis-btn { background: #263238; border: 1px solid #555; color: #fff; border-radius: 10px; padding: 10px 18px; font-size: 0.95em; font-weight: 700; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -112,6 +114,7 @@
       <button class="zone" id="zone-right" type="button">STEER RIGHT<br>▶</button>
     </div>
     <button id="mode-btn" type="button">Use touch steering</button>
+    <button id="axis-btn" type="button">Holding it: PORTRAIT (tap if car won't turn)</button>
   </div>
 
   <script src="/driver/gyro/gyroscope-steering.js"></script>
@@ -237,7 +240,21 @@
       setMode('touch', message || 'Gyroscope unavailable - steer with the touch zones', true);
     }
 
-    var gyro = GyroscopeSteering.create(SteeringInput);
+    // Best-effort initial guess only (screen orientation freezes under the phone's rotation
+    // lock, a common default, so this can be wrong - that's what the axis button below is for).
+    var initialAxisMode = (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) ? 'landscape' : 'portrait';
+    var gyro = GyroscopeSteering.create(SteeringInput, { axisMode: initialAxisMode });
+
+    var axisBtn = document.getElementById('axis-btn');
+    var AXIS_CYCLE = ['portrait', 'landscape', 'landscape-flip'];
+    var AXIS_LABEL = { portrait: 'PORTRAIT', landscape: 'LANDSCAPE', 'landscape-flip': 'LANDSCAPE (flipped)' };
+    function renderAxisBtn() { axisBtn.textContent = 'Holding it: ' + AXIS_LABEL[gyro.getAxisMode()] + ' (tap if car won\'t turn)'; }
+    renderAxisBtn();
+    axisBtn.addEventListener('click', function () {
+      var next = AXIS_CYCLE[(AXIS_CYCLE.indexOf(gyro.getAxisMode()) + 1) % AXIS_CYCLE.length];
+      gyro.setAxisMode(next);
+      renderAxisBtn();
+    });
 
     startBtn.addEventListener('click', function () {
       startBtn.disabled = true;

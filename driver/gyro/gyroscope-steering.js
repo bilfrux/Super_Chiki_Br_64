@@ -25,15 +25,18 @@ var GyroscopeSteering = (function () {
     return typeof window.DeviceOrientationEvent !== 'undefined';
   }
 
-  // beta/gamma are given in the device's own body frame, not the screen's - rotating
-  // the phone 90 degrees into landscape swaps which physical axis is "left/right tilt".
-  function readTilt(event) {
-    var angle = (screen.orientation && typeof screen.orientation.angle === 'number')
-      ? screen.orientation.angle
-      : (typeof window.orientation === 'number' ? window.orientation : 0);
-    if (angle === 90)  return (event.beta === null || event.beta === undefined) ? null : -event.beta;
-    if (angle === -90 || angle === 270) return (event.beta === null || event.beta === undefined) ? null : event.beta;
-    return event.gamma; // portrait (0 or 180)
+  // beta/gamma are given in the device's own body frame, not the screen's, so which one
+  // is "left/right tilt" depends on how the phone is physically held. screen.orientation.angle
+  // looks like the right way to detect that, but it reflects the OS's rotation-lock state, not
+  // the phone's actual physical orientation - with rotation lock on (a common default) it stays
+  // frozen at "portrait" even while the phone is held sideways, silently breaking steering. So
+  // this is an explicit mode set by the driver page instead of an auto-detected one.
+  var AXIS_MODES = { portrait: 1, landscape: 1, 'landscape-flip': 1 };
+
+  function tiltFor(mode, event) {
+    if (mode === 'landscape')      return (event.beta === null || event.beta === undefined) ? null : -event.beta;
+    if (mode === 'landscape-flip') return (event.beta === null || event.beta === undefined) ? null : event.beta;
+    return event.gamma; // 'portrait'
   }
 
   function requestPermissionIfNeeded() {
@@ -62,9 +65,10 @@ var GyroscopeSteering = (function () {
     var smoothing   = options.smoothing !== undefined ? options.smoothing : SMOOTHING;
     var smoothed    = 0;
     var centerGamma = null; // calibration baseline - the first reading becomes "center"
+    var axisMode    = AXIS_MODES[options.axisMode] ? options.axisMode : 'portrait';
 
     function handleOrientation(event) {
-      var tilt = readTilt(event); // left/right tilt in degrees, axis picked for current orientation
+      var tilt = tiltFor(axisMode, event); // left/right tilt in degrees, axis picked by the current mode
       if (tilt === null || tilt === undefined) return;
 
       if (centerGamma === null) centerGamma = tilt;
@@ -76,32 +80,31 @@ var GyroscopeSteering = (function () {
       target.set(smoothed);
     }
 
-    // the phone was physically rotated: which axis is "left/right" just changed, recenter
-    function handleOrientationChange() {
-      centerGamma = null;
-      smoothed = 0;
-    }
-
     return {
       // resolves once listening has started; rejects if unsupported or permission was refused
       start: function () {
         if (!isSupported()) return Promise.reject(new Error('deviceorientation not supported'));
         return requestPermissionIfNeeded().then(function () {
           window.addEventListener('deviceorientation', handleOrientation, true);
-          window.addEventListener('orientationchange', handleOrientationChange);
-          if (screen.orientation) screen.orientation.addEventListener('change', handleOrientationChange);
         });
       },
       stop: function () {
         window.removeEventListener('deviceorientation', handleOrientation, true);
-        window.removeEventListener('orientationchange', handleOrientationChange);
-        if (screen.orientation) screen.orientation.removeEventListener('change', handleOrientationChange);
       },
       // treats the phone's current tilt as the new center (call again any time the driver re-grips the phone)
       recalibrate: function () {
         centerGamma = null;
         smoothed = 0;
       },
+      // 'portrait' | 'landscape' | 'landscape-flip' - switches which sensor axis counts as left/right
+      // and recenters. Driven by an explicit UI control, not auto-detection (see note above).
+      setAxisMode: function (mode) {
+        if (!AXIS_MODES[mode]) return;
+        axisMode = mode;
+        centerGamma = null;
+        smoothed = 0;
+      },
+      getAxisMode: function () { return axisMode; },
       isSupported: isSupported
     };
   }
