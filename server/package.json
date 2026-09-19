@@ -1,0 +1,24 @@
+{
+  "name": "@mgp/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MONAD GRAND PRIX authoritative WebSocket server (protocol v1)",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "build": "tsc -p .",
+    "start": "node --env-file-if-exists=.env dist/server/src/index.js",
+    "dev": "npm run build && npm start",
+    "test": "tsc -p . && node --test --test-timeout=30000 \"dist/server/test/*.test.js\"",
+    "demo": "npm run build && node dist/server/tools/demo.js",
+    "sim": "npm run build && node dist/server/tools/sim.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.6.0"
+  }
+}
