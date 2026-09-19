@@ -7,24 +7,28 @@
   <title>MONAD GRAND PRIX · BOOST</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body data-team="" data-conn="connecting" data-phase="LOBBY">
+<body data-team="" data-conn="connecting" data-phase="LOBBY" data-chaos="" data-meme="">
+  <div id="rave" aria-hidden="true"></div>
+  <div id="flash" aria-hidden="true"></div>
   <header>
     <div class="label">YOUR TEAM</div>
     <div id="team-name">CONNECTING…</div>
     <div id="status" aria-live="polite">Joining the race…</div>
+    <div id="progress" aria-hidden="true"><i id="progress-bar"></i></div>
   </header>
 
   <main>
     <button id="boost" type="button" disabled aria-label="Boost">
       <span id="boost-label">BOOST</span>
     </button>
+    <div id="ripples" aria-hidden="true"></div>
     <div id="banner" hidden></div>
   </main>
 
   <footer>
     <div class="stat"><div class="value" id="stat-you">0</div><div class="label">YOUR BOOSTS</div></div>
     <div class="stat"><div class="value" id="stat-rate">0</div><div class="label">TEAM BOOSTS / SEC</div></div>
-    <div class="stat"><div class="value" id="stat-team">0</div><div class="label">TEAM BOOSTS SEEN</div></div>
+    <div class="stat"><div class="value" id="stat-team">0</div><div class="label">BOOSTERS ON TEAM</div></div>
   </footer>
 
   <div id="overlay" hidden>

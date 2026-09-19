@@ -15,7 +15,14 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  overscroll-behavior: none;
+  overscroll-behavior: none; /* no pull-to-refresh, no rubber-banding */
+  touch-action: none; /* no double-tap zoom, pinch zoom or panning anywhere */
+}
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none; /* no iOS long-press callout */
+  -webkit-user-drag: none;
 }
 
 body {
@@ -30,7 +37,6 @@ body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  touch-action: manipulation;
   transition: background-color 0.3s;
 }
 
@@ -80,10 +86,15 @@ main {
   box-shadow: 0 0.6rem 0 rgba(0, 0, 0, 0.35);
   touch-action: none;
   cursor: pointer;
-  transition: transform 0.05s, box-shadow 0.05s, opacity 0.2s;
+  transition: box-shadow 0.05s, opacity 0.2s;
+  will-change: transform;
 }
-#boost:active,
-#boost.pressed {
+/* Two identical keyframes, swapped on every tap, restart the animation without a reflow or a timer. */
+#boost.pop-a { animation: pop-a 0.12s ease-out; }
+#boost.pop-b { animation: pop-b 0.12s ease-out; }
+@keyframes pop-a { 0% { transform: translateY(0.45rem) scale(0.965); } 100% { transform: none; } }
+@keyframes pop-b { 0% { transform: translateY(0.45rem) scale(0.965); } 100% { transform: none; } }
+#boost:active {
   transform: translateY(0.45rem) scale(0.985);
   box-shadow: 0 0.15rem 0 rgba(0, 0, 0, 0.35);
 }
@@ -152,4 +163,75 @@ footer {
   color: #111;
   font: inherit;
   font-size: 1.2rem;
+}
+
+/* ---- header progress (position comes straight from RACE_STATE) ---- */
+#progress { height: 0.4rem; margin: 0.5rem auto 0; width: min(20rem, 80%); border-radius: 1rem; background: rgba(0, 0, 0, 0.3); overflow: hidden; }
+#progress-bar { display: block; height: 100%; width: 0; background: var(--team-text); }
+
+/* ---- tap ripples: a small fixed pool, reused ---- */
+#ripples { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.ripple {
+  position: absolute;
+  width: 6rem;
+  height: 6rem;
+  margin: -3rem 0 0 -3rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  pointer-events: none;
+}
+.ripple.go-a { animation: ripple-a 0.45s ease-out; }
+.ripple.go-b { animation: ripple-b 0.45s ease-out; }
+@keyframes ripple-a { 0% { transform: scale(0.3); opacity: 0.8; } 100% { transform: scale(3); opacity: 0; } }
+@keyframes ripple-b { 0% { transform: scale(0.3); opacity: 0.8; } 100% { transform: scale(3); opacity: 0; } }
+
+/* ---- meme / chaos reactions ---- */
+#rave { position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0; mix-blend-mode: hard-light; }
+
+/* Own team in CHAOS_MODE: neon colour cycle (2 colours/s, under the 3 flashes/s photosensitivity limit) + hard shake. */
+body[data-chaos="own"] #rave { opacity: 0.55; animation: rave 2s steps(1, end) infinite; }
+body[data-chaos="own"] header,
+body[data-chaos="own"] main { animation: shake 0.14s linear infinite; }
+body[data-chaos="own"] #boost { animation: chaos-btn 0.5s ease-in-out infinite alternate; }
+body[data-chaos="own"] #boost.pop-a { animation: pop-a 0.12s ease-out; }
+body[data-chaos="own"] #boost.pop-b { animation: pop-b 0.12s ease-out; }
+/* Another team's chaos: a softer wobble and a faint tint, so the crowd feels it without losing focus. */
+body[data-chaos="other"] #rave { opacity: 0.18; animation: rave 4s steps(1, end) infinite; }
+body[data-chaos="other"] main { animation: wobble 0.6s ease-in-out infinite alternate; }
+
+@keyframes rave {
+  0%   { background: #ff00e5; }
+  25%  { background: #00f0ff; }
+  50%  { background: #b6ff00; }
+  75%  { background: #ffe600; }
+}
+@keyframes shake {
+  0%   { transform: translate(5px, -4px) rotate(0.8deg); }
+  25%  { transform: translate(-6px, 3px) rotate(-1deg); }
+  50%  { transform: translate(4px, 5px) rotate(0.6deg); }
+  75%  { transform: translate(-4px, -5px) rotate(-0.8deg); }
+  100% { transform: translate(5px, -4px) rotate(0.8deg); }
+}
+@keyframes wobble { from { transform: translateX(-2px) rotate(-0.4deg); } to { transform: translateX(2px) rotate(0.4deg); } }
+@keyframes chaos-btn { from { box-shadow: 0 0.6rem 0 rgba(0,0,0,0.35), 0 0 1.5rem 0.3rem #ff00e5; } to { box-shadow: 0 0.6rem 0 rgba(0,0,0,0.35), 0 0 2.5rem 0.8rem #00f0ff; } }
+
+/* One-shot flash when a meme fires for this team. */
+#flash { position: fixed; inset: 0; z-index: 6; pointer-events: none; opacity: 0; background: #fff; }
+#flash.go-a { animation: meme-flash-a 0.7s ease-out; }
+#flash.go-b { animation: meme-flash-b 0.7s ease-out; }
+@keyframes meme-flash-a { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+@keyframes meme-flash-b { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+
+/* Persistent glow while a meme is active on this team. */
+body[data-meme="chiki_brr"] #boost { box-shadow: 0 0.6rem 0 rgba(0,0,0,0.35), 0 0 1.6rem 0.5rem #ff8a00; }
+body[data-meme="giga_boost"] #boost { box-shadow: 0 0.6rem 0 rgba(0,0,0,0.35), 0 0 1.6rem 0.5rem #ffd700; }
+body[data-meme="meme_drop"] #boost { box-shadow: 0 0.6rem 0 rgba(0,0,0,0.35), 0 0 1.6rem 0.5rem #00e5ff; }
+
+/* Motion-sensitive users: keep the information (static tint, banner) but no shaking or colour cycling. */
+@media (prefers-reduced-motion: reduce) {
+  body[data-chaos="own"] #rave { animation: none; background: #ff00e5; opacity: 0.3; }
+  body[data-chaos="other"] #rave { animation: none; background: #00f0ff; opacity: 0.12; }
+  body[data-chaos] header, body[data-chaos] main, body[data-chaos] #boost { animation: none; }
+  #flash.go-a, #flash.go-b { animation: none; }
 }
