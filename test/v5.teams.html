@@ -795,8 +795,13 @@
         cars.push(car);
       });
 
-      var totalTraffic = 150; // obstacle cars/trucks, same population approach as v4.final.html
-      for (var n = 0 ; n < totalTraffic ; n++) {
+      addTrafficCars(150);
+    }
+
+    // obstacle cars/trucks, same population approach as v4.final.html - shared by the local
+    // mode (populateRaceCars, above) and live mode (Live.begin, below) so both have traffic.
+    function addTrafficCars(count) {
+      for (var n = 0 ; n < count ; n++) {
         var offset = Math.random() * Util.randomChoice([-0.8, 0.8]);
         var z      = Math.floor(Math.random() * segments.length) * segmentLength;
         var sprite = Util.randomChoice(SPRITES.CARS);
@@ -1016,14 +1021,26 @@
       }
 
       live.begin = function () {
+        function place(car, z) {
+          car.z = Util.increase(z, 0, trackLength);
+          car.percent = Util.percentRemaining(car.z, segmentLength);
+          findSegment(car.z).cars.push(car);
+        }
+
         // the four team cars already exist from the idle preview grid: keep exactly those
-        cars = cars.filter(function (c) { return c.team; });
+        var teamCars = cars.filter(function (c) { return c.team; });
+        segments.forEach(function (s) { s.cars = []; }); // clear stale refs (idle preview + any earlier race)
+        cars = teamCars;
         cars.forEach(function (c, i) {
           c.d = GRID_AHEAD + playerZ;
           c.base = GRID_OFFSETS[i];
           c.offset = c.base;
           c.speed = 0;
+          place(c, c.d);
         });
+
+        addTrafficCars(150); // obstacle cars/trucks to dodge - same population as the local single-player mode
+
         live.ready = true;
         message('CONNECTING...', '2.4em');
       };
@@ -1084,6 +1101,7 @@
         var n, car, tgt, gap, k = Math.min(1, dt * SMOOTH), leadD = -Infinity, lead = null, maxVis = 0;
         for (n = 0; n < cars.length; n++) {
           car = cars[n];
+          if (!car.team) continue; // traffic car - moved separately below, it has no race target
           tgt = live.targets[car.team.id];
           if (!tgt) continue;
           car.d      += (tgt.d - car.d) * k;
@@ -1094,11 +1112,18 @@
         if (!lead) return;
         for (n = 0; n < cars.length; n++) {
           car = cars[n];
-          if (!live.targets[car.team.id]) continue;
+          if (!car.team || !live.targets[car.team.id]) continue;
           gap = leadD - car.d;
           car.vis = MAX_GAP * (1 - Math.exp(-gap / MAX_GAP));
           if (car.vis > maxVis) maxVis = car.vis;
           place(car, leadD - car.vis);
+        }
+
+        // ambient traffic: just drives forward at its own pace, same as the local mode's updateCars()
+        for (n = 0; n < cars.length; n++) {
+          car = cars[n];
+          if (car.team) continue;
+          place(car, car.z + car.speed * dt);
         }
         var startPosition = position;
         position = Util.increase(leadD - maxVis - CAMERA_BACK - playerZ, 0, trackLength);
