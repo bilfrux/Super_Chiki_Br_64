@@ -54,7 +54,7 @@ def team_state():
 
 
 PATH_ALIASES = {
-    # "/": "/game/lobby/index.html",  # lobby kept at /game/lobby/ for now - not wired to "/" yet, see game/lobby/index.html
+    "/": "/game/lobby/index.html",
     "/join": "/booster/ui/join/index.html",
     "/join/": "/booster/ui/join/index.html",
     "/booster": "/booster/ui/booster/index.html",
