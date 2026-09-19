@@ -101,6 +101,32 @@ test("accepted boosts raise energy (clamped to 1), rate and speed; energy decays
   assert.equal(team(e, "red").boostRate, 0, "rate window empties after ~1 s");
 });
 
+test("tuning: a single player tapping 3-4 times/s holds and builds boost energy; 2/s cannot", () => {
+  // Simulate one tapper for `seconds`; return the final energy and the lowest energy seen in the last 5 s
+  // (energy that never returns to zero between taps means the player is at or above break-even).
+  const tapper = (hz: number, seconds: number) => {
+    const e = make({ secondsAtSpeed1: 1000 });
+    racing(e);
+    let carry = 0;
+    let minLate = Infinity;
+    for (let i = 0; i < seconds * HZ; i++) {
+      carry += hz * DT;
+      while (carry >= 1) { e.applyBoost("red"); carry -= 1; }
+      e.tick(DT);
+      if (i > (seconds - 5) * HZ) minLate = Math.min(minLate, team(e, "red").boostEnergy);
+    }
+    return { final: team(e, "red").boostEnergy, minLate };
+  };
+  assert.ok(DEFAULT_RACE_CONFIG.energyDecayPerSec / DEFAULT_RACE_CONFIG.boostGain < 3, "break-even is below 3 boosts/s");
+  const at3 = tapper(3, 15);
+  const at4 = tapper(4, 15);
+  assert.ok(at3.minLate > 0, `3 taps/s never drains to zero: ${at3.minLate}`);
+  assert.ok(at3.final > 0.3, `3 taps/s builds energy over 15 s: ${at3.final}`);
+  assert.ok(at4.final > at3.final, `4 taps/s builds faster: ${at4.final} vs ${at3.final}`);
+  assert.equal(tapper(2, 15).minLate, 0, "2 taps/s is below break-even and drains to zero between taps");
+  assert.ok(tapper(20, 3).final >= 0.9, "a crowd saturates it");
+});
+
 test("boostRate is a 1-second sliding window", () => {
   const e = make();
   racing(e);

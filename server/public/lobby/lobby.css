@@ -1,0 +1,53 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 1.5rem 1rem 3rem;
+  background: #0d0d12;
+  color: #fff;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  text-align: center;
+}
+h1 { margin: 0; font-size: clamp(2rem, 6vw, 4rem); letter-spacing: 0.08em; }
+h2 { margin: 1.2rem 0 0.6rem; letter-spacing: 0.15em; }
+.tag { margin: 0.3rem 0 0; opacity: 0.7; }
+
+#join img {
+  display: block;
+  margin: 0.5rem auto;
+  width: min(80vw, 360px);
+  height: auto;
+  background: #fff;
+  border-radius: 0.5rem;
+}
+#join-url { font-size: 1.3rem; font-weight: 700; word-break: break-all; }
+#join-warn { margin: 0.6rem auto; max-width: 34rem; padding: 0.5rem 0.8rem; border-radius: 0.5rem; background: #6b3b00; }
+#addresses { margin-top: 0.6rem; font-size: 0.85rem; opacity: 0.9; }
+#addresses button { margin: 0.15rem; }
+
+table { margin: 0.8rem auto; border-collapse: collapse; width: min(100%, 44rem); }
+th { font-size: 0.7rem; letter-spacing: 0.1em; opacity: 0.6; padding: 0.3rem; }
+td { padding: 0.45rem 0.4rem; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+td.team { font-weight: 800; text-align: left; }
+.dot { display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.4em; border-radius: 50%; vertical-align: -0.1em; }
+.bar { height: 0.8rem; min-width: 8rem; border-radius: 0.4rem; background: #2a2a33; overflow: hidden; }
+.bar > i { display: block; height: 100%; }
+#race-status { font-size: 1.6rem; font-weight: 800; letter-spacing: 0.06em; margin-top: 1rem; }
+#metrics { opacity: 0.75; font-size: 0.9rem; }
+
+#admin-form { display: flex; gap: 0.4rem; justify-content: center; }
+input, button {
+  font: inherit;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid #444;
+  background: #1c1c26;
+  color: #fff;
+}
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: #2b2b3a; }
+#controls { margin-top: 0.7rem; display: flex; gap: 0.6rem; justify-content: center; }
+#start { background: #1a9e46; border-color: #1a9e46; font-weight: 800; }
+#reset { background: #a02020; border-color: #a02020; font-weight: 800; }
+#admin-msg { min-height: 1.4em; margin-top: 0.5rem; opacity: 0.85; }
+[hidden] { display: none !important; }

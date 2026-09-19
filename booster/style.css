@@ -1,0 +1,155 @@
+/* Mobile-first, one screen, no scrolling. The whole page takes the team colour. */
+
+:root {
+  --team: #444;
+  --team-text: #fff;
+}
+body[data-team="red"]    { --team: #e5262a; --team-text: #fff; }
+body[data-team="blue"]   { --team: #1f6fe5; --team-text: #fff; }
+body[data-team="green"]  { --team: #1a9e46; --team-text: #fff; }
+body[data-team="yellow"] { --team: #f5c400; --team-text: #111; }
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--team);
+  color: var(--team-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-weight: 800;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  transition: background-color 0.3s;
+}
+
+.label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  opacity: 0.8;
+}
+
+header {
+  padding: 0.75rem 1rem 0.25rem;
+  text-align: center;
+}
+#team-name {
+  font-size: clamp(2.2rem, 11vw, 4rem);
+  line-height: 1;
+  letter-spacing: 0.06em;
+}
+#status {
+  margin-top: 0.35rem;
+  min-height: 1.5em;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+main {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  min-height: 0;
+}
+
+#boost {
+  width: 100%;
+  height: 100%;
+  max-width: 34rem;
+  border: 0.5rem solid var(--team-text);
+  border-radius: 2.5rem;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: clamp(3.5rem, 20vw, 8rem);
+  letter-spacing: 0.04em;
+  box-shadow: 0 0.6rem 0 rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  cursor: pointer;
+  transition: transform 0.05s, box-shadow 0.05s, opacity 0.2s;
+}
+#boost:active,
+#boost.pressed {
+  transform: translateY(0.45rem) scale(0.985);
+  box-shadow: 0 0.15rem 0 rgba(0, 0, 0, 0.35);
+}
+#boost:disabled {
+  opacity: 0.45;
+  cursor: default;
+  font-size: clamp(1.6rem, 9vw, 3rem);
+}
+
+#banner {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  top: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  text-align: center;
+  font-size: 1.6rem;
+  pointer-events: none;
+  animation: pop 0.25s ease-out;
+}
+@keyframes pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+footer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0.9rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.22);
+}
+.stat .value {
+  font-size: clamp(1.5rem, 8vw, 2.4rem);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat .label { font-size: 0.62rem; }
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+  text-align: center;
+}
+#overlay[hidden], #banner[hidden] { display: none; }
+#overlay-title { font-size: 2rem; }
+#overlay-text { font-size: 1.1rem; font-weight: 600; opacity: 0.85; max-width: 24rem; }
+#overlay-btn {
+  padding: 0.9rem 1.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  font-size: 1.2rem;
+}

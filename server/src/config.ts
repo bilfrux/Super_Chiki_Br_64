@@ -8,12 +8,20 @@ import {
   type MemeConfig,
 } from "../../shared/index.js";
 import { DEFAULT_RACE_CONFIG, type RaceConfig } from "./engine.js";
+import { defaultBoosterDir, defaultLobbyDir } from "./paths.js";
 
 export type ServerConfig = {
   port: number;
   host: string;
   /** Operator key for the `admin` role. If unset, the admin role is disabled. */
   adminKey?: string;
+  /**
+   * Public base URL phones should use (e.g. an https tunnel or a deployment),
+   * with no path. If unset, the QR code uses this machine's LAN address.
+   */
+  publicUrl?: string;
+  boosterDir: string; // static files served at /booster/
+  lobbyDir: string; // static files served at /lobby/
   rate: {
     boostRatePerSec: number;
     boostBurst: number;
@@ -58,6 +66,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Conf
     port: num(env, "PORT", 8080, { min: 0, int: true }),
     host: env.HOST || "0.0.0.0",
     adminKey: env.ADMIN_KEY || undefined,
+    publicUrl: env.PUBLIC_URL || undefined,
+    boosterDir: env.BOOSTER_DIR || defaultBoosterDir(),
+    lobbyDir: env.LOBBY_DIR || defaultLobbyDir(),
     rate: {
       boostRatePerSec: num(env, "BOOST_RATE_PER_SEC", DEFAULT_RATE_LIMITS.BOOST_RATE_PER_SEC, { min: 0.001 }),
       boostBurst: num(env, "BOOST_BURST", DEFAULT_RATE_LIMITS.BOOST_BURST, { min: 1 }),

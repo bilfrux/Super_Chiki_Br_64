@@ -43,8 +43,8 @@ export const DEFAULT_RACE_CONFIG: RaceConfig = {
   secondsAtSpeed1: 60,
   baseSpeed: 0.5,
   boostSpeed: 0.5,
-  boostGain: 0.03,
-  energyDecayPerSec: 0.3,
+  boostGain: 0.1,
+  energyDecayPerSec: 0.25, // break-even = decay / gain = 2.5 boosts/s per team
   safeSpeed: 0.3,
   finalLapPosition: 0.75,
 };

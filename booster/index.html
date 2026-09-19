@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <title>MONAD GRAND PRIX · BOOST</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-team="" data-conn="connecting" data-phase="LOBBY">
+  <header>
+    <div class="label">YOUR TEAM</div>
+    <div id="team-name">CONNECTING…</div>
+    <div id="status" aria-live="polite">Joining the race…</div>
+  </header>
+
+  <main>
+    <button id="boost" type="button" disabled aria-label="Boost">
+      <span id="boost-label">BOOST</span>
+    </button>
+    <div id="banner" hidden></div>
+  </main>
+
+  <footer>
+    <div class="stat"><div class="value" id="stat-you">0</div><div class="label">YOUR BOOSTS</div></div>
+    <div class="stat"><div class="value" id="stat-rate">0</div><div class="label">TEAM BOOSTS / SEC</div></div>
+    <div class="stat"><div class="value" id="stat-team">0</div><div class="label">TEAM BOOSTS SEEN</div></div>
+  </footer>
+
+  <div id="overlay" hidden>
+    <div id="overlay-title"></div>
+    <div id="overlay-text"></div>
+    <button id="overlay-btn" type="button" hidden></button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MONAD GRAND PRIX · LOBBY</title>
+  <link rel="stylesheet" href="lobby.css">
+</head>
+<body>
+  <h1>MONAD GRAND PRIX</h1>
+  <p class="tag">The driver drives. The crowd is the engine.</p>
+
+  <section id="join">
+    <h2>SCAN TO JOIN</h2>
+    <img id="qr" alt="QR code to join as a Booster" width="360" height="360">
+    <div id="join-url">…</div>
+    <div id="join-warn" hidden></div>
+    <div id="addresses" hidden></div>
+  </section>
+
+  <section id="live">
+    <div id="race-status">CONNECTING…</div>
+    <table id="teams">
+      <thead><tr><th>TEAM</th><th>DRIVER</th><th>BOOSTERS</th><th>BOOSTS/S</th><th>PROGRESS</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="metrics"></div>
+  </section>
+
+  <section id="admin">
+    <h2>OPERATOR</h2>
+    <form id="admin-form" autocomplete="off">
+      <input id="admin-key" type="password" placeholder="ADMIN_KEY" aria-label="Admin key">
+      <button type="submit">UNLOCK</button>
+    </form>
+    <div id="controls" hidden>
+      <button id="start" type="button">START RACE</button>
+      <button id="reset" type="button">RESET</button>
+    </div>
+    <div id="admin-msg"></div>
+  </section>
+
+  <script src="lobby.js"></script>
+</body>
+</html>

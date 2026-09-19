@@ -33,6 +33,7 @@ import {
 } from "../../shared/index.js";
 import type { ServerConfig } from "./config.js";
 import { RaceEngine } from "./engine.js";
+import { createRequestHandler } from "./http.js";
 import { Limiter } from "./rateLimit.js";
 
 /** Skip sending to a client whose socket buffer is this backed up (slow phone). */
@@ -99,25 +100,26 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
   const startedAt = Date.now();
   let nextConnId = 1;
 
-  // --- HTTP (health only) + WebSocket upgrade on /ws ------------------------
+  // --- HTTP (static UIs, join info, QR, health) + WebSocket upgrade on /ws ---
 
-  const httpServer = http.createServer((req, res) => {
-    if (req.method === "GET" && req.url === "/health") {
-      const roles: Record<string, number> = { screen: 0, admin: 0, driver: 0, booster: 0 };
-      for (const c of live) roles[c.player!.role] = (roles[c.player!.role] ?? 0) + 1;
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        ok: true,
-        protocolVersion: PROTOCOL_VERSION,
-        status: engine.status,
-        connections: roles,
-        uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
-      }));
-      return;
-    }
-    res.writeHead(404, { "content-type": "text/plain" });
-    res.end("Not found. WebSocket endpoint: /ws");
-  });
+  let listeningPort = config.port;
+  const httpServer = http.createServer(
+    createRequestHandler({
+      config,
+      getPort: () => listeningPort,
+      health: () => {
+        const roles: Record<string, number> = { screen: 0, admin: 0, driver: 0, booster: 0 };
+        for (const c of live) roles[c.player!.role] = (roles[c.player!.role] ?? 0) + 1;
+        return {
+          ok: true,
+          protocolVersion: PROTOCOL_VERSION,
+          status: engine.status,
+          connections: roles,
+          uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+        };
+      },
+    }),
+  );
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws", maxPayload: HARD_MAX_PAYLOAD });
 
@@ -434,6 +436,7 @@ export async function startServer(config: ServerConfig, log: Logger = console.lo
     });
   });
   const port = (httpServer.address() as AddressInfo).port;
+  listeningPort = port;
 
   return {
     port,
