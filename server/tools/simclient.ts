@@ -20,6 +20,8 @@ export type SimHello = {
 
 export class SimClient {
   readonly messages: ServerMessage[] = [];
+  /** performance.now() at which messages[i] arrived (for cadence / latency measurements). */
+  readonly times: number[] = [];
   welcome?: ServerWelcome;
   closeCode?: number;
   private ws!: WebSocket;
@@ -39,6 +41,7 @@ export class SimClient {
         try {
           const msg = JSON.parse(data.toString()) as ServerMessage;
           this.messages.push(msg);
+          this.times.push(performance.now());
           if (msg.type === "WELCOME") this.welcome = msg;
         } catch { /* ignore non-JSON */ }
         this.notify();
