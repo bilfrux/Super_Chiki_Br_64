@@ -95,6 +95,10 @@
     <source src="music/racer.ogg">
     <source src="music/racer.mp3">
   </audio>
+  <audio id="crash-sound">
+    <source src="music/crash.ogg">
+    <source src="music/crash.mp3">
+  </audio>
   <span id="mute"></span>
 
   <script src="stats.js"></script>
@@ -965,11 +969,19 @@
       var CAMERA_BACK  = 700;    // camera sits this far behind the rearmost car
       var MAX_GAP      = 30000;  // on screen, gaps between cars saturate here (a whole race is one lap of road, far more than fits in view)
       var SMOOTH       = 12;     // per-second follow rate: hides the 20 Hz snapshot cadence
-      var live = { active: true, state: null, targets: {}, seenActive: false, net: null, bannerTimer: null, ready: false, pending: null, hitFlash: {}, hitCooldown: {} };
+      var live = { active: true, state: null, targets: {}, seenActive: false, net: null, bannerTimer: null, ready: false, pending: null, hitFlash: {}, hitCooldown: {}, crashedUntil: {} };
 
-      // Cosmetic-only side-swipe feedback: real progress stays 100% server-authoritative (per
-      // PROTOCOL.md the server has no physics/collisions at all), this only flashes/shakes the
-      // team's own quadrant for a moment when its car's screen box overlaps a traffic car's.
+      var CRASH_MS = 2000; // how long a crashed car sits at 0 visual speed with the crash image/sound
+
+      // crash.png/crash.mp3(+.ogg) in /test/images and /test/music - drop files with those exact
+      // names and they show up automatically, no code change needed.
+      var crashImg = new Image();
+      crashImg.src = 'images/crash.png';
+      var crashSound = document.getElementById('crash-sound');
+
+      // Cosmetic-only side-swipe feedback: real race progress stays 100% server-authoritative (per
+      // PROTOCOL.md the server has no physics/collisions at all) - only the visual speed and the
+      // team's own quadrant (flash/shake/crash image/sound) react, for CRASH_MS.
       function checkCollisions() {
         var now = Date.now(), n, car, carSeg, carW, s, seg, j, other, otherW, hit;
         for (n = 0; n < cars.length; n++) {
@@ -989,8 +1001,10 @@
             }
           }
           if (hit) {
-            live.hitCooldown[car.team.id] = now + 900; // don't re-trigger every frame while still touching
-            live.hitFlash[car.team.id] = now + 350;    // visual flash duration
+            live.hitCooldown[car.team.id]   = now + CRASH_MS; // no re-trigger while already crashed
+            live.hitFlash[car.team.id]      = now + CRASH_MS;
+            live.crashedUntil[car.team.id]  = now + CRASH_MS;
+            try { crashSound.currentTime = 0; crashSound.play().catch(function () {}); } catch (e) {}
           }
         }
       }
@@ -1147,21 +1161,26 @@
         if (!live.ready) return;
         if (live.pending) { var p = live.pending; live.pending = null; applyState(p); }
         if (!live.state) return;
-        var n, car, tgt, gap, k = Math.min(1, dt * SMOOTH), leadD = -Infinity, lead = null, maxVis = 0;
+        var now = Date.now();
+        var n, car, tgt, crashed, gap, k = Math.min(1, dt * SMOOTH), leadD = -Infinity, lead = null, maxVis = 0;
         for (n = 0; n < cars.length; n++) {
           car = cars[n];
           if (!car.team) continue; // traffic car - moved separately below, it has no race target
           tgt = live.targets[car.team.id];
           if (!tgt) continue;
+          crashed = live.crashedUntil[car.team.id] && now < live.crashedUntil[car.team.id];
           car.d      += (tgt.d - car.d) * k;
           car.offset += (tgt.offset - car.offset) * k;
-          car.speed   = tgt.speed * maxSpeed / 2; // visual scroll speed only (real race progress is server-side and unaffected) - toned down a bit, felt too fast
+          car.speed   = crashed ? 0 : tgt.speed * maxSpeed / 2; // visual scroll speed only (real race progress is server-side and unaffected) - toned down a bit, felt too fast
           if (car.d > leadD) { leadD = car.d; lead = car; }
         }
         if (!lead) return;
         for (n = 0; n < cars.length; n++) {
           car = cars[n];
           if (!car.team || !live.targets[car.team.id]) continue;
+          // a crashed car's own camera/position holds still instead of tracking the pack - it
+          // catches back up automatically once CRASH_MS elapses (see checkCollisions/CRASH_MS)
+          if (live.crashedUntil[car.team.id] && now < live.crashedUntil[car.team.id]) continue;
           gap = leadD - car.d;
           car.vis = MAX_GAP * (1 - Math.exp(-gap / MAX_GAP));
           if (car.vis > maxVis) maxVis = car.vis;
@@ -1210,9 +1229,10 @@
 
           var hitLeft = live.hitFlash[team.id] ? (live.hitFlash[team.id] - now) : 0;
           var hitting = hitLeft > 0;
+          var shakeAmt = hitting ? 0.25 * Math.min(1, hitLeft / 400) : 0; // shake only the first ~400ms
 
           position = Util.increase(car.z - CAMERA_BACK - playerZ, 0, trackLength);
-          playerX  = hitting ? (Math.random() - 0.5) * 0.25 : 0; // quick shake, cosmetic only
+          playerX  = shakeAmt ? (Math.random() - 0.5) * shakeAmt : 0; // cosmetic only
           speed    = car.speed;
 
           ctx.save();
@@ -1223,8 +1243,14 @@
           ctx.scale(halfW / width, halfH / height);
           renderSingleView();
           if (hitting) {
-            ctx.fillStyle = 'rgba(229, 57, 53, ' + (0.35 * hitLeft / 350) + ')';
+            ctx.fillStyle = 'rgba(229, 57, 53, ' + (0.3 * Math.min(1, hitLeft / 400)) + ')';
             ctx.fillRect(0, 0, width, height);
+            if (crashImg.complete && crashImg.naturalWidth > 0) {
+              var iw = width * 0.4, ih = iw * (crashImg.naturalHeight / crashImg.naturalWidth);
+              ctx.globalAlpha = Math.min(1, hitLeft / 300); // fade out at the very end
+              ctx.drawImage(crashImg, (width - iw) / 2, (height - ih) / 2, iw, ih);
+              ctx.globalAlpha = 1;
+            }
           }
           ctx.restore();
 
