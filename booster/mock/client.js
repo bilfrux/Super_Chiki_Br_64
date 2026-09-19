@@ -16,6 +16,7 @@ var MonadClient = (function () {
   var MOCK_MODE = true; // clearly isolated - flip this file out once the real server exists
   var SESSION_KEY = 'mgp_session_id';
   var TEAM_KEY = 'mgp_team_id';
+  var ROLE_KEY = 'mgp_role';
 
   function getSessionId() {
     var id = localStorage.getItem(SESSION_KEY);
@@ -30,9 +31,31 @@ var MonadClient = (function () {
     return localStorage.getItem(TEAM_KEY);
   }
 
+  // Asks the mock backend for a role on this team (first joiner = driver,
+  // everyone after = booster), then remembers both locally. Never blocks the
+  // UI on the network failing: falls back to "booster" so the join flow still
+  // works with zero server (MOCK_MODE guarantee).
   function join(teamId) {
     localStorage.setItem(TEAM_KEY, teamId);
-    return Promise.resolve({ ok: true, teamId: teamId, sessionId: getSessionId() });
+    return fetch('/api/join', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId: teamId })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var role = data.role || 'booster';
+        localStorage.setItem(ROLE_KEY, role);
+        return { ok: true, teamId: teamId, role: role, sessionId: getSessionId() };
+      })
+      .catch(function () {
+        localStorage.setItem(ROLE_KEY, 'booster');
+        return { ok: true, teamId: teamId, role: 'booster', sessionId: getSessionId() };
+      });
+  }
+
+  function getRole() {
+    return localStorage.getItem(ROLE_KEY) || 'booster';
   }
 
   // MONAD GRAND PRIX - generic, transport-agnostic event abstraction.
@@ -84,6 +107,7 @@ var MonadClient = (function () {
     MOCK_MODE: MOCK_MODE,
     getSessionId: getSessionId,
     getTeam: getTeam,
+    getRole: getRole,
     join: join,
     emitGameEvent: emitGameEvent,
     sendBoost: sendBoost,

@@ -60,8 +60,10 @@
     document.querySelectorAll('.team-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var teamId = btn.getAttribute('data-team');
-        MonadClient.join(teamId).then(function () {
-          window.location.href = '/booster';
+        btn.disabled = true;
+        MonadClient.join(teamId).then(function (result) {
+          // first person on a team becomes its driver, everyone after is a booster
+          window.location.href = (result.role === 'driver') ? ('/driver?team=' + teamId) : '/booster';
         });
       });
     });

@@ -33,6 +33,7 @@ PORT = 8123
 
 state_lock = threading.Lock()
 boosters = {team_id: 0 for team_id in TEAM_IDS}
+team_members = {team_id: {"driverConnected": False, "boostersJoined": 0} for team_id in TEAM_IDS}
 
 
 def team_state():
@@ -45,12 +46,24 @@ def team_state():
                     "boostRate": 0,
                     "position": 0,
                     "speed": 0,
-                    "driverConnected": False,
+                    "driverConnected": team_members[team_id]["driverConnected"],
+                    "boostersJoined": team_members[team_id]["boostersJoined"],
                     "boosters": boosters[team_id],
                 }
                 for team_id in TEAM_IDS
             ]
         }
+
+
+def join_team(team_id):
+    """First joiner becomes the driver, everyone after is a booster."""
+    with state_lock:
+        members = team_members[team_id]
+        if not members["driverConnected"]:
+            members["driverConnected"] = True
+            return "driver"
+        members["boostersJoined"] += 1
+        return "booster"
 
 
 PATH_ALIASES = {
@@ -114,6 +127,24 @@ class MockHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if path == "/api/join":
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                payload = json.loads(raw or b"{}")
+            except json.JSONDecodeError:
+                self._send_json({"ok": False, "error": "invalid json"}, status=400)
+                return
+
+            team_id = payload.get("teamId")
+            if team_id not in TEAM_IDS:
+                self._send_json({"ok": False, "error": "unknown team"}, status=400)
+                return
+
+            role = join_team(team_id)
+            self._send_json({"ok": True, "teamId": team_id, "role": role, **team_state()})
+            return
+
         if path == "/api/boost":
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length) if length else b"{}"

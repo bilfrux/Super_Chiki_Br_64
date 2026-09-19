@@ -57,6 +57,15 @@
 
     #fallback { display: none; font-size: 1.1em; color: #FDD835; max-width: 340px; line-height: 1.5; }
     #fallback.visible { display: block; }
+
+    #conn-status {
+      font-size: 0.85em; letter-spacing: 0.03em; padding: 6px 14px; border-radius: 20px;
+      background: #1a1a24; color: #999;
+    }
+    #conn-status.connected    { background: rgba(67, 160, 71, 0.25); color: #7fd68a; }
+    #conn-status.connecting   { background: rgba(253, 216, 53, 0.2); color: #fdd835; }
+    #conn-status.disconnected,
+    #conn-status.error        { background: rgba(229, 57, 53, 0.2); color: #ff8a80; }
   </style>
 </head>
 <body>
@@ -64,6 +73,8 @@
   <div class="screen">
     <h1>🏎️ MONAD GRAND PRIX</h1>
     <p class="subtitle">YOUR PHONE IS YOUR STEERING WHEEL</p>
+    <p id="team-badge" style="display:none; font-weight:800; letter-spacing:0.05em; padding:6px 16px; border-radius:20px;"></p>
+    <p id="conn-status">race server: connecting…</p>
 
     <button id="start-btn">START DRIVER</button>
     <p id="status"></p>
@@ -78,22 +89,49 @@
     <p id="fallback">Gyroscope unavailable — use keyboard</p>
   </div>
 
+  <script src="/shared/network/ws-url.js"></script>
+  <script src="/driver/network/driver-websocket.js"></script>
   <script src="/driver/gyro/gyroscope-steering.js"></script>
   <script>
     var dot            = document.getElementById('dot');
     var valueText      = document.getElementById('value-text');
     var statusEl       = document.getElementById('status');
+    var connStatusEl   = document.getElementById('conn-status');
+    var teamBadgeEl    = document.getElementById('team-badge');
     var indicatorWrap  = document.getElementById('indicator-wrap');
     var fallbackEl     = document.getElementById('fallback');
+
+    // Shows which team this phone is driving even before/without a real
+    // server connection - the mock JOIN flow (see /join) already assigned it
+    // and put it in the URL (?team=red).
+    (function () {
+      var TEAM_COLORS = { red: '#E53935', blue: '#1E88E5', green: '#43A047', yellow: '#FDD835' };
+      var teamId = new URLSearchParams(window.location.search).get('team');
+      if (!teamId || !TEAM_COLORS[teamId]) return;
+      teamBadgeEl.textContent = teamId.toUpperCase() + ' TEAM — YOU ARE THE DRIVER';
+      teamBadgeEl.style.display = 'inline-block';
+      teamBadgeEl.style.background = TEAM_COLORS[teamId];
+      teamBadgeEl.style.color = teamId === 'yellow' ? '#2a2a08' : '#fff';
+    })();
     var startBtn       = document.getElementById('start-btn');
     var recalibrateBtn = document.getElementById('recalibrate-btn');
 
     var gotReading = false; // true as soon as a single real orientation reading has arrived
 
-    // Local test-mode target for THIS step only: same shape as the racer's real
-    // SteeringInput (value + set(value)). Proves GyroscopeSteering -> .set(value)
-    // works end-to-end without any network. A later (WebSocket) step will send
-    // this same value to the real racer instead of just drawing it here.
+    // Sends every steering value to the race server (throttled, see driver-websocket.js).
+    // Independent of the gyroscope: GyroscopeSteering never sees this, it only ever
+    // calls SteeringInput.set() below, exactly as in the local-only test step.
+    var driverWs = DriverWebSocket.create(function (status, detail) {
+      connStatusEl.className = status;
+      if (status === 'connecting')   connStatusEl.textContent = 'race server: connecting…';
+      if (status === 'connected')    connStatusEl.textContent = 'race server: connected' + (detail.team ? ' — team ' + detail.team.toUpperCase() : '');
+      if (status === 'disconnected') connStatusEl.textContent = 'race server: disconnected — retrying…';
+      if (status === 'error')        connStatusEl.textContent = 'race server error: ' + (detail.message || detail.code || 'unknown');
+    });
+
+    // Local on-page indicator, same shape as the racer's real SteeringInput
+    // (value + set(value)). Every value is ALSO forwarded to driverWs, so this
+    // one object is both "what the driver sees" and "what the network sends".
     var SteeringInput = {
       value: 0,
       set: function (value) {
@@ -104,6 +142,7 @@
         indicatorWrap.classList.add('visible');
         fallbackEl.classList.remove('visible');
         renderIndicator(value);
+        driverWs.steer(value);
       }
     };
 

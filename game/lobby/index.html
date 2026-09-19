@@ -113,17 +113,37 @@
     .team-counts { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
     .team-count {
       display: flex; align-items: center; gap: 10px;
-      font-size: 1.25em; font-weight: 800;
-      padding: 10px 18px; border-radius: 10px; color: #fff;
+      font-size: 1.15em; font-weight: 800;
+      padding: 10px 16px; border-radius: 10px; color: #fff;
       border: 3px solid #1a0630;
       box-shadow: 0 4px 0 rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.25);
       text-shadow: 0 2px 0 rgba(0,0,0,0.35);
-      min-width: 140px; justify-content: space-between;
+      min-width: 150px; justify-content: space-between;
     }
     .team-red    { background: var(--p1); }
     .team-blue   { background: var(--p2); }
     .team-green  { background: var(--p3); }
     .team-yellow { background: var(--p4); color: #2a2a08; text-shadow: none; }
+
+    .composition { display: flex; align-items: center; gap: 8px; font-size: 0.9em; }
+    .driver-icon { opacity: 0.25; filter: grayscale(1); transition: opacity 0.2s, filter 0.2s; }
+    .driver-icon.active { opacity: 1; filter: none; }
+    .boosters-joined { display: flex; align-items: center; gap: 3px; }
+
+    #start-race-btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.7em, 2vw, 1em);
+      letter-spacing: 0.05em;
+      color: #1a0630;
+      background: var(--p4);
+      border: 4px solid #1a0630;
+      border-radius: 14px;
+      padding: 16px 34px;
+      margin-top: 10px;
+      cursor: pointer;
+      box-shadow: 0 6px 0 #8f6400, 0 10px 22px rgba(0,0,0,0.5);
+    }
+    #start-race-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #8f6400; }
 
     .stars span {
       position: absolute; z-index: 3; pointer-events: none;
@@ -166,11 +186,25 @@
     <p class="hint">📱 Choose your team on your phone</p>
 
     <div class="team-counts">
-      <div class="team-count team-red">   <span>🔴 RED</span>    <span id="count-red">0</span></div>
-      <div class="team-count team-blue">  <span>🔵 BLUE</span>   <span id="count-blue">0</span></div>
-      <div class="team-count team-green"> <span>🟢 GREEN</span>  <span id="count-green">0</span></div>
-      <div class="team-count team-yellow"><span>🟡 YELLOW</span> <span id="count-yellow">0</span></div>
+      <div class="team-count team-red">
+        <span>🔴 RED</span>
+        <span class="composition"><span class="driver-icon" id="driver-red">🎮</span><span class="boosters-joined">🙋<span id="count-red">0</span></span></span>
+      </div>
+      <div class="team-count team-blue">
+        <span>🔵 BLUE</span>
+        <span class="composition"><span class="driver-icon" id="driver-blue">🎮</span><span class="boosters-joined">🙋<span id="count-blue">0</span></span></span>
+      </div>
+      <div class="team-count team-green">
+        <span>🟢 GREEN</span>
+        <span class="composition"><span class="driver-icon" id="driver-green">🎮</span><span class="boosters-joined">🙋<span id="count-green">0</span></span></span>
+      </div>
+      <div class="team-count team-yellow">
+        <span>🟡 YELLOW</span>
+        <span class="composition"><span class="driver-icon" id="driver-yellow">🎮</span><span class="boosters-joined">🙋<span id="count-yellow">0</span></span></span>
+      </div>
     </div>
+
+    <button id="start-race-btn">🏁 LANCER LA PARTIE</button>
   </div>
 
   <script src="/shared/protocol/events.js"></script>
@@ -187,10 +221,17 @@
 
     MonadClient.subscribeTeamState(function (state) {
       (state.teams || []).forEach(function (team) {
-        var el = document.getElementById('count-' + team.id);
-        if (el) el.textContent = team.boosters;
+        var countEl  = document.getElementById('count-' + team.id);
+        var driverEl = document.getElementById('driver-' + team.id);
+        if (countEl)  countEl.textContent = team.boostersJoined || 0;
+        if (driverEl) driverEl.classList.toggle('active', !!team.driverConnected);
       });
     }, 1000);
+
+    document.getElementById('start-race-btn').addEventListener('click', function () {
+      // hands off to the racer's own countdown - see test/v5.teams.html's autostart handling
+      window.location.href = '/test/v5.teams.html?autostart=1';
+    });
   </script>
 
 </body>

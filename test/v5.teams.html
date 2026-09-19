@@ -101,6 +101,8 @@
   <script src="common.js"></script>
   <script src="/shared/types/teams.js"></script>
   <script src="/shared/protocol/events.js"></script>
+  <script src="/shared/network/ws-url.js"></script>
+  <script src="/test/racer-websocket.js"></script>
   <script>
 
     var fps            = 60;                      // how many 'update' frames per second
@@ -230,6 +232,15 @@
         setRight: function (down) { right = down; apply(); }
       };
     })();
+
+    // Second, independent source for the SAME SteeringInput: DRIVER_STEER events
+    // from the race server for whichever team this screen is currently playing as.
+    // If no server is reachable, or no driver connects, this never fires and
+    // keyboard keeps full control - see test/racer-websocket.js.
+    RacerWebSocket.create(
+      function getPlayerTeamId() { return playerTeam ? playerTeam.id : null; },
+      function onSteer(value) { SteeringInput.set(value); }
+    );
 
     //=========================================================================
     // UPDATE THE GAME WORLD
@@ -820,6 +831,18 @@
         reset({ width: window.innerWidth, height: window.innerHeight });
         Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180;
         updateHud('fast_lap_time', formatTime(Util.toFloat(Dom.storage.fast_lap_time)));
+
+        // MONAD GRAND PRIX - lobby "LANCER LA PARTIE" hands off here with
+        // ?autostart=1: skip the local team-count/color menu (teams are already
+        // filled by people joining via /join) and go straight to the countdown.
+        // Defaults to 4 teams, RED as the screen's followed car. Must run after
+        // reset() above, which is what sets up segments/playerZ that chooseTeam
+        // -> populateRaceCars needs.
+        if (new URLSearchParams(window.location.search).get('autostart') === '1') {
+          document.getElementById('setup-step-count').classList.add('hidden');
+          teamCount = 4;
+          chooseTeam(TEAMS[0]);
+        }
       }
     });
 
