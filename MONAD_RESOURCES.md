@@ -81,13 +81,28 @@ Sources: https://docs.monad.xyz/guides/deploy-smart-contract/foundry, https://do
 - Documented deploy: `forge create src/<File>.sol:<Contract> --account <keystore> --broadcast`, with the keystore made by `cast wallet import`. The docs recommend a keystore over a raw private key.
 - Verification guides exist for Foundry and Hardhat.
 
-Contract state — **TODO, after deployment** (source: `contracts/src/BoostLedger.sol`, compiles with solc 0.8.37; not yet deployed):
+Contract state — **DEPLOYED on Monad Testnet (chain id 10143)** (source: `contracts/src/BoostLedger.sol`, compiles with solc 0.8.37):
 
 - Contract name: BoostLedger
-- Contract address:
-- Deployment transaction:
-- ABI:
-- Explorer link:
+- **Contract address: `0xC8ff1fe4d81e476Ae682a1898869f34781BD6Ff0`** (deployed manually by the operator; `server/.env` `BOOST_LEDGER_ADDRESS`)
+- **Relayer wallet (the only address allowed to call `recordBatch`): `0x53304048455325fBFFecC34a62976CB3f4D7b519`**. Throwaway testnet key, funded with 5 MON, kept only in `server/.env` (git-ignored). Verified on chain: `BoostLedger.relayer()` returns this address.
+- Deployment transaction: not recorded here (deployed outside this repo's tooling); find it on the explorer from the contract address.
+- ABI: `recordBatch(uint32[4] counts)`, `totals(uint256) view returns (uint64)`, `relayer() view returns (address)`, `event BoostsRecorded(uint8 indexed team, uint32 count, uint64 total)` (team 0 red, 1 blue, 2 green, 3 yellow); see `server/src/chain/monad.ts`.
+- Explorer: MonadVision https://testnet.monadvision.com or Monadscan https://testnet.monadscan.com (search the address; the direct `/tx/<hash>` URLs below were not opened by tooling).
+
+### Live rehearsal (real server → real Monad Testnet, 2026-09-19)
+
+One rehearsal race (server started with `server/.env`, `SECONDS_AT_SPEED_1=25`; 1 driver + 3 red boosters + 2 blue boosters at 5-8 clicks/s):
+
+- The server reported `chainMode: LIVE` (`/health` `chain.state: "LIVE"`) before the race and throughout.
+- **13 transactions sent, 13 confirmed (finalized), 0 failed, 0 unconfirmed**; RACE_STATE `metrics.transactionsSent = 13`, `transactionsConfirmed = 13`, `eventsReceived = 26`.
+- On-chain check by reading the contract and logs directly from the RPC: 13/13 receipts `status: success`, 26 `BoostsRecorded` events, `totals` moved by exactly the boosts the server accepted (**red +454, blue +305**, green 0, yellow 0).
+- Each batch carried about 60 boosts (a whole 2 s window) instead of one transaction per click. `gasUsed` was 150,000 = the gas limit on every transaction (Monad charges the limit, as documented); cost ≈ 0.0153 MON per transaction, 0.1989 MON for the whole rehearsal (relayer balance 4.9615 → 4.7626 MON, about 310 more batches).
+- Sample transactions (block, boosts recorded):
+  - `0xf38534200d34fdb00ad5aaf5ebf7c43606667953441c6e063fc1f7c16c9eb906` (block 63931049, red+12 blue+8)
+  - `0x71c7cf5336b8d9e27c89d481fe222c1b8ce6c7d727dfc46cbac7f0e44d06bc72` (block 63931055, red+37 blue+25)
+  - `0x7f5ada78e0018a5888099e52e484d9c5a708b0a525ef06d08696e171a1979a0d` (block 63931128, red+34 blue+22)
+- The contract totals are cumulative across all races (and the rehearsal started from all zeros); the server's counters reset on each RESET.
 
 ---
 
@@ -208,9 +223,9 @@ This section must be completed before the final demo.
 - [x] RPC documented — re-verify with a live `eth_chainId` call
 - [x] Explorer documented — re-verify
 - [ ] Faucet verified (testnets page says https://faucet.monad.xyz; Foundry guide says https://testnet.monad.xyz)
-- [ ] Contract deployed (needs a funded key)
-- [ ] Contract address recorded
-- [ ] Transaction tested on the real testnet (only tested against a fake node so far)
-- [ ] Event tested on the real testnet
-- [ ] Booster flow tested
-- [x] Failure/fallback tested (RPC down, slow RPC, not-yet-finalized, wrong chain id; fake node)
+- [x] Contract deployed (0xC8ff1fe4d81e476Ae682a1898869f34781BD6Ff0)
+- [x] Contract address recorded
+- [x] Transaction tested on the real testnet (13/13 batch transactions succeeded, 2026-09-19 rehearsal)
+- [x] Event tested on the real testnet (26 BoostsRecorded events; eventsReceived = 26)
+- [x] Booster flow tested (simulated boosters over WebSocket against the LIVE chain; not yet with real phones)
+- [x] Failure/fallback tested (RPC down, slow RPC, not-yet-finalized, wrong chain id; fake node only, not against the real RPC)
