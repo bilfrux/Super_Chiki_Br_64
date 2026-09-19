@@ -71,6 +71,20 @@
     #zone-right { background: #E53935; }
     .zone.active { transform: translateY(6px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); filter: brightness(1.35); }
     #mode-btn { background: none; border: 1px solid #555; color: #ccc; border-radius: 10px; padding: 8px 16px; font-size: 0.9em; cursor: pointer; }
+
+    #rotate-hint { display: none; }
+    @media (orientation: portrait) {
+      #rotate-hint {
+        display: flex; align-items: center; gap: 10px; justify-content: center;
+        background: #FDD835; color: #1a1a00; font-weight: 700; font-size: 0.95em;
+        border-radius: 12px; padding: 10px 16px; margin: 0 0 4px;
+      }
+      #rotate-hint .icon { font-size: 1.4em; animation: rotate-hint-spin 1.6s ease-in-out infinite; }
+    }
+    @keyframes rotate-hint-spin {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-90deg); }
+    }
   </style>
 </head>
 <body>
@@ -78,6 +92,7 @@
   <div class="screen">
     <h1>🏎️ MONAD GRAND PRIX</h1>
     <p class="subtitle">YOUR PHONE IS YOUR STEERING WHEEL</p>
+    <div id="rotate-hint"><span class="icon">📱</span> Turn your phone sideways for the best feel</div>
 
     <button id="start-btn">START DRIVER</button>
     <p id="status"></p>

@@ -971,7 +971,7 @@
       var overlay   = document.getElementById('setup-overlay');
       var countEl   = document.getElementById('setup-countdown');
       var valueEl   = document.getElementById('countdown-value');
-      var netPill, banner, metrics;
+      var netPill, banner, metrics, ranking;
 
       function el(tag, css, parent) {
         var e = document.createElement(tag);
@@ -1018,6 +1018,22 @@
       function renderMetrics(s) {
         if (!metrics) metrics = el('div', 'position:fixed;left:14px;bottom:14px;z-index:3;font:700 0.9em Verdana,sans-serif;color:#fff;text-shadow:0 1px 3px #000;background:rgba(0,0,0,0.45);padding:6px 10px;border-radius:6px;pointer-events:none');
         metrics.textContent = 'BOOSTS/S ' + Math.round(s.metrics.boostsPerSecond) + '   ' + chainText(s);
+      }
+
+      // Live ranking, P1..P4 by real race position (0..1) - the same number that decides the winner.
+      function renderRanking(s) {
+        if (!ranking) ranking = el('div', 'position:fixed;right:14px;bottom:14px;z-index:6;font:700 0.85em Verdana,sans-serif;color:#fff;text-shadow:0 1px 3px #000;background:rgba(0,0,0,0.45);padding:8px 10px;border-radius:6px;pointer-events:none;min-width:140px');
+        var ranked = s.teams.slice().sort(function (a, b) { return b.position - a.position; });
+        ranking.innerHTML = ranked.map(function (t, i) {
+          var team = TEAMS.filter(function (x) { return x.id === t.id; })[0];
+          var name = team ? team.name : String(t.id).toUpperCase();
+          var color = team ? team.color : '#fff';
+          return '<div style="display:flex;align-items:center;gap:6px;padding:1px 0">' +
+            '<span style="opacity:0.8">P' + (i + 1) + '</span>' +
+            '<span style="width:10px;height:10px;border-radius:50%;background:' + color + ';display:inline-block;flex:none"></span>' +
+            '<span>' + name + '</span>' +
+            '</div>';
+        }).join('');
       }
 
       live.begin = function () {
@@ -1073,6 +1089,7 @@
 
         document.getElementById('canvas').classList.toggle('mgp-chaos', s.status === 'CHAOS');
         renderMetrics(s);
+        renderRanking(s);
 
         if (s.status === 'LOBBY') {
           if (live.seenActive) { location.href = MgpClient.link('/'); return; } // race was reset: back to the lobby screen

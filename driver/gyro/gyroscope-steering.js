@@ -25,6 +25,17 @@ var GyroscopeSteering = (function () {
     return typeof window.DeviceOrientationEvent !== 'undefined';
   }
 
+  // beta/gamma are given in the device's own body frame, not the screen's - rotating
+  // the phone 90 degrees into landscape swaps which physical axis is "left/right tilt".
+  function readTilt(event) {
+    var angle = (screen.orientation && typeof screen.orientation.angle === 'number')
+      ? screen.orientation.angle
+      : (typeof window.orientation === 'number' ? window.orientation : 0);
+    if (angle === 90)  return (event.beta === null || event.beta === undefined) ? null : -event.beta;
+    if (angle === -90 || angle === 270) return (event.beta === null || event.beta === undefined) ? null : event.beta;
+    return event.gamma; // portrait (0 or 180)
+  }
+
   function requestPermissionIfNeeded() {
     // iOS 13+ requires an explicit, user-gesture-triggered permission request.
     // Android / older Safari / desktop browsers do not have this method at all.
@@ -53,16 +64,22 @@ var GyroscopeSteering = (function () {
     var centerGamma = null; // calibration baseline - the first reading becomes "center"
 
     function handleOrientation(event) {
-      var gamma = event.gamma; // left/right tilt in degrees (~ -90..90 on most phones)
-      if (gamma === null || gamma === undefined) return;
+      var tilt = readTilt(event); // left/right tilt in degrees, axis picked for current orientation
+      if (tilt === null || tilt === undefined) return;
 
-      if (centerGamma === null) centerGamma = gamma;
+      if (centerGamma === null) centerGamma = tilt;
 
-      var raw = clamp((gamma - centerGamma) / sensitivity, -1, 1);
+      var raw = clamp((tilt - centerGamma) / sensitivity, -1, 1);
       var value = applyDeadZone(raw, deadZone);
       smoothed = smoothed + (value - smoothed) * smoothing; // basic low-pass filter
       if (Math.abs(smoothed) < 0.01) smoothed = 0;          // settle exactly on "straight"
       target.set(smoothed);
+    }
+
+    // the phone was physically rotated: which axis is "left/right" just changed, recenter
+    function handleOrientationChange() {
+      centerGamma = null;
+      smoothed = 0;
     }
 
     return {
@@ -71,10 +88,14 @@ var GyroscopeSteering = (function () {
         if (!isSupported()) return Promise.reject(new Error('deviceorientation not supported'));
         return requestPermissionIfNeeded().then(function () {
           window.addEventListener('deviceorientation', handleOrientation, true);
+          window.addEventListener('orientationchange', handleOrientationChange);
+          if (screen.orientation) screen.orientation.addEventListener('change', handleOrientationChange);
         });
       },
       stop: function () {
         window.removeEventListener('deviceorientation', handleOrientation, true);
+        window.removeEventListener('orientationchange', handleOrientationChange);
+        if (screen.orientation) screen.orientation.removeEventListener('change', handleOrientationChange);
       },
       // treats the phone's current tilt as the new center (call again any time the driver re-grips the phone)
       recalibrate: function () {
