@@ -102,6 +102,7 @@
   <script src="/shared/types/teams.js"></script>
   <script src="/shared/protocol/events.js"></script>
   <script src="/game/net/mgp-client.js"></script>
+  <script src="/game/race/meme-billboards.js"></script>
   <script>
 
     var fps            = 60;                      // how many 'update' frames per second
@@ -532,7 +533,12 @@
           spriteScale = segment.p1.screen.scale;
           spriteX     = segment.p1.screen.x + (spriteScale * sprite.offset * roadWidth * width/2);
           spriteY     = segment.p1.screen.y;
-          Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
+          if (sprite.meme) {
+            // meme billboard (cosmetic): same size/position as the original sign, different picture (game/race/meme-billboards.js)
+            Render.sprite(ctx, width, height, resolution, roadWidth, sprite.meme, sprite.meme.mgpRect, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
+          } else {
+            Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
+          }
         }
 
         if (segment == playerSegment) {
@@ -835,6 +841,7 @@
         sprites    = images[1];
         buildTeamCarImages();
         reset({ width: window.innerWidth, height: window.innerHeight });
+        if (window.MemeBoards) MemeBoards.init(function () { return segments; }); // cosmetic: meme images on the billboards (loads in the background)
         window.racerReady = true; // LIVE MODE waits for this
         Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180;
         updateHud('fast_lap_time', formatTime(Util.toFloat(Dom.storage.fast_lap_time)));
