@@ -448,7 +448,16 @@
     // RENDER THE GAME WORLD
     //=========================================================================
 
+    // dispatcher: normal single view, or (?live=1&split=1) four independent
+    // per-team chase cameras. Neither branch changes what renderSingleView()
+    // itself does - split mode just calls it four times with different
+    // position/playerX/speed and a canvas clip+transform per quadrant.
     function render() {
+      if (typeof Live !== 'undefined' && Live.split) { Live.renderSplit(); return; }
+      renderSingleView();
+    }
+
+    function renderSingleView() {
 
       var baseSegment   = findSegment(position);
       var basePercent   = Util.percentRemaining(position, segmentLength);
@@ -952,6 +961,7 @@
       var MAX_GAP      = 30000;  // on screen, gaps between cars saturate here (a whole race is one lap of road, far more than fits in view)
       var SMOOTH       = 12;     // per-second follow rate: hides the 20 Hz snapshot cadence
       var live = { active: true, state: null, targets: {}, seenActive: false, net: null, bannerTimer: null, ready: false, pending: null };
+      live.split = /[?&]split=1(&|$)/.test(location.search); // ?live=1&split=1: 4 independent per-team chase cameras instead of one shared view
 
       var overlay   = document.getElementById('setup-overlay');
       var countEl   = document.getElementById('setup-countdown');
@@ -1100,6 +1110,53 @@
         treeOffset = Util.increase(treeOffset, treeSpeed * seg.curve * move / segmentLength, 1);
         updateHud('speed', Math.round(lead.speed / maxSpeed * 190));
         updateHud('current_lap_time', formatTime(Math.max(0, live.state.elapsed)));
+      };
+
+      // ?live=1&split=1: draws the SAME scene four times, once per team, into the four
+      // quadrants of the canvas - each as its own chase camera trailing that team's own
+      // car. Reuses renderSingleView() untouched: only position/playerX/speed (the camera)
+      // change between calls, plus a clip+scale so each pass lands in its own quadrant.
+      live.renderSplit = function () {
+        ctx.clearRect(0, 0, width, height);
+        if (!live.ready || !live.state) return;
+
+        var halfW = width / 2, halfH = height / 2;
+        var slots = [ { x: 0, y: 0 }, { x: halfW, y: 0 }, { x: 0, y: halfH }, { x: halfW, y: halfH } ];
+        var savedPosition = position, savedPlayerX = playerX, savedSpeed = speed;
+
+        TEAMS.forEach(function (team, i) {
+          var car = findCarByTeamId(team.id);
+          var slot = slots[i];
+          if (!car) return;
+
+          position = Util.increase(car.z - CAMERA_BACK - playerZ, 0, trackLength);
+          playerX  = 0;
+          speed    = car.speed;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(slot.x, slot.y, halfW, halfH);
+          ctx.clip();
+          ctx.translate(slot.x, slot.y);
+          ctx.scale(halfW / width, halfH / height);
+          renderSingleView();
+          ctx.restore();
+
+          ctx.save();
+          ctx.strokeStyle = team.color;
+          ctx.lineWidth = 4;
+          ctx.strokeRect(slot.x + 2, slot.y + 2, halfW - 4, halfH - 4);
+          ctx.fillStyle = team.color;
+          ctx.fillRect(slot.x, slot.y, 150, 36);
+          ctx.fillStyle = (team.id === 'yellow') ? '#2a2a08' : '#fff';
+          ctx.font = 'bold 20px Verdana, sans-serif';
+          ctx.fillText(team.name, slot.x + 12, slot.y + 25);
+          ctx.restore();
+        });
+
+        position = savedPosition;
+        playerX  = savedPlayerX;
+        speed    = savedSpeed;
       };
 
       // ---- connection ----
