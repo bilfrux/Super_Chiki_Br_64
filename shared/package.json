@@ -1,0 +1,21 @@
+{
+  "name": "@mgp/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MONAD GRAND PRIX shared protocol v1 (types, constants, validation). Contract: protocol/PROTOCOL.md",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "build": "tsc -p .",
+    "test": "tsc -p . && node --test \"dist/test/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
